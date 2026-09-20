@@ -99,6 +99,26 @@ async function main() {
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
       'Track Train suggestions overflow horizontally'
     )
+
+    const mobilePage = await browser.newPage({
+      viewport: { width: 390, height: 844 },
+      isMobile: true,
+    })
+    mobilePage.on('pageerror', error => errors.push(`mobile pageerror: ${error.message}`))
+    mobilePage.on('console', message => {
+      if (message.type() === 'error') errors.push(`mobile console: ${message.text()}`)
+    })
+    await mobilePage.goto(appUrl, { waitUntil: 'networkidle' })
+    assert.ok(
+      await mobilePage.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
+      'Polished mobile home overflows horizontally'
+    )
+    await mobilePage.screenshot({
+      path: resolve(outputDir, 'mobile-polished-home.png'),
+      fullPage: true,
+    })
+    await mobilePage.close()
+
     assert.deepEqual(errors, [], `Browser errors:\n${errors.join('\n')}`)
     console.log('Read-only Supabase train suggestion test passed (Rangpur Express / W-771).')
   } finally {
