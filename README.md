@@ -1,4 +1,4 @@
-# FERROVIA / Railway Nexus
+# FERROVIA
 
 FERROVIA is a complete full-stack railway e-ticketing and operational tracking system. It combines passenger booking, segment-aware seat reservation, demo payment, ticket management, operator station updates, live train status, spare trainset rotation, notifications, and an admin operations workspace in one project.
 
