@@ -40,17 +40,16 @@ function ensureAssignedOperator(trip, user) {
 }
 
 async function calculateStopDelay(connection, tripStopId) {
-  const result = await connection.execute(
+  const result = await connection.query(
     `SELECT CASE
               WHEN ACTUAL_DEPARTURE IS NULL OR SCHEDULED_DEPARTURE IS NULL THEN 0
-              ELSE GREATEST(0, ROUND((CAST(ACTUAL_DEPARTURE AS DATE) - CAST(SCHEDULED_DEPARTURE AS DATE)) * 1440))
+              ELSE EXTRACT(EPOCH FROM (ACTUAL_DEPARTURE - SCHEDULED_DEPARTURE)) / 60
             END AS DELAY_MINUTES
        FROM TRIP_STOPS
-      WHERE TRIP_STOP_ID = :tripStopId`, {
-    tripStopId
-  }
+      WHERE TRIP_STOP_ID = $1`,
+    [tripStopId]
   )
-  return Number(result.rows[0]?.DELAY_MINUTES || 0)
+  return Math.max(0, Math.round(Number(result.rows[0]?.DELAY_MINUTES || 0)))
 }
 
 export async function operatorTrips(user, date) {
@@ -127,14 +126,6 @@ export async function departFromStop(user, tripId, tripStopId) {
       throw badRequest('This is the destination stop; use Arrived instead of Departed')
     if (stop.ACTUAL_DEPARTURE)
       throw badRequest('Departure has already been marked')
-    if (
-      new Date().getTime() <
-      new Date(stop.SCHEDULED_DEPARTURE).getTime()
-    ) {
-      throw badRequest(
-        'Departure cannot be marked before the scheduled departure time'
-      )
-    }
     if (
       new Date().getTime() <
       new Date(stop.SCHEDULED_DEPARTURE).getTime()

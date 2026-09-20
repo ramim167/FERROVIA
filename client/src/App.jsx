@@ -605,6 +605,13 @@ function App() {
                         setToast={setToast}
                     />
                 )}
+                {page === "admin" && (
+                    <AdminPanel
+                        user={user}
+                        handleError={handleError}
+                        setToast={setToast}
+                    />
+                )}
                 {page === "admin-add-train" && (
                     <AdminTrainServiceForm
                         user={user}
@@ -669,7 +676,7 @@ function Home({ search, setSearch, doSearch, navigate, stations }) {
                     </h1>
                     <p>
                         Search, reserve and track your railway journey through a secure
-                        Oracle-backed travel workspace.
+                        PostgreSQL-backed travel workspace.
                     </p>
                     <div className="hero-actions">
                         <button className="primary" onClick={doSearch}>
@@ -800,6 +807,12 @@ function SearchPage({
                 : new Date(a.scheduled_departure) - new Date(b.scheduled_departure)
         );
     }, [trains, times, types, sort]);
+    useReveal([
+        filtered.length,
+        times.join("|"),
+        types.join("|"),
+        sort,
+    ]);
     const toggle = (setter, value) =>
         setter((a) =>
             a.includes(value) ? a.filter((x) => x !== value) : [...a, value]
@@ -807,7 +820,7 @@ function SearchPage({
     return (
         <main className="page">
             <div className="page-title">
-                <span className="eyebrow">LIVE ORACLE SCHEDULE SEARCH</span>
+                <span className="eyebrow">LIVE POSTGRESQL SCHEDULE SEARCH</span>
                 <h1>Choose the best journey</h1>
                 <p>
                     {search.from} to {search.to} • {search.date}
@@ -864,7 +877,7 @@ function SearchPage({
                     <div className="result-top">
                         <div>
                             <b>{filtered.length} trains available</b>
-                            <small>Results are read from Oracle TRIPS + ROUTES</small>
+                            <small>Results are read from PostgreSQL TRIPS + ROUTES</small>
                         </div>
                         <select value={sort} onChange={(e) => setSort(e.target.value)}>
                             <option value="earliest">Earliest departure</option>
@@ -1253,7 +1266,7 @@ function PaymentPage({
                 <span className="eyebrow">SECURE DEMO CHECKOUT</span>
                 <h1>Choose payment method</h1>
                 <p>
-                    Your Oracle seat reservation is HELD for {booking.holdMinutes || 10}{" "}
+                    Your PostgreSQL seat reservation is HELD for {booking.holdMinutes || 10}{" "}
                     minutes{expiry ? ` (until ${fmtTime(expiry)})` : ""}.
                 </p>
             </div>
@@ -1398,7 +1411,7 @@ function Confirmation({ booking, navigate }) {
                 <h1>Your ticket is ready!</h1>
                 <p>
                     Payment, booking, reservations and ticket rows have been committed in
-                    Oracle.
+                    PostgreSQL.
                 </p>
                 <div className="ticket">
                     <div className="ticket-main">
@@ -1472,7 +1485,7 @@ function Dashboard({
         return (
             <AccessCard
                 title="Sign in for your travel dashboard"
-                copy="Bookings, tickets, cancellations and notifications are stored in Oracle under your account."
+                copy="Bookings, tickets, cancellations and notifications are stored in PostgreSQL under your account."
                 action="Sign in"
                 onAction={onAuth}
             />
@@ -1599,7 +1612,7 @@ function Dashboard({
                     ) : (
                         <div className="empty-dashboard">
                             <Icon name="ticket" size={38} />
-                            <p>Create your next booking and it will appear here.</p>
+                            <p>Create your next booking to start your travel history.</p>
                             <button className="primary" onClick={() => navigate("search")}>
                                 Find trains
                             </button>
@@ -1673,7 +1686,7 @@ function Tickets({ user, bookings, navigate, cancel, onAuth, handleError }) {
         return (
             <AccessCard
                 title="Sign in to view My Tickets"
-                copy="Your ticket wallet is loaded from Oracle, not browser localStorage."
+                copy="Your ticket wallet is loaded from PostgreSQL, not browser localStorage."
                 action="Sign in"
                 onAction={onAuth}
             />
@@ -1691,7 +1704,7 @@ function Tickets({ user, bookings, navigate, cancel, onAuth, handleError }) {
     return (
         <main className="page">
             <div className="page-title">
-                <span className="eyebrow">MY ORACLE BOOKINGS</span>
+                <span className="eyebrow">MY POSTGRESQL BOOKINGS</span>
                 <h1>Tickets & bookings</h1>
                 <p>View passenger seats, cancellation status and refund requests.</p>
             </div>
@@ -1700,7 +1713,7 @@ function Tickets({ user, bookings, navigate, cancel, onAuth, handleError }) {
                 <div className="empty card">
                     <Icon name="ticket" size={42} />
                     <h2>No tickets yet</h2>
-                    <p>Your confirmed and pending bookings will appear here.</p>
+                    <p>Your confirmed and pending booking list is currently empty.</p>
                     <button className="primary" onClick={() => navigate("search")}>
                         Book a ticket
                     </button>
@@ -1769,10 +1782,79 @@ function TrackTrain({ handleError }) {
     const [query, setQuery] = useState("SUBORNO"),
         [live, setLive] = useState(null),
         [stops, setStops] = useState([]),
-        [loading, setLoading] = useState(false);
+        [loading, setLoading] = useState(false),
+        [services, setServices] = useState([]),
+        [suggestionsOpen, setSuggestionsOpen] = useState(false),
+        [activeSuggestion, setActiveSuggestion] = useState(-1);
+    const searchRef = useRef(null);
+    const suggestions = useMemo(() => {
+        const term = query.trim().toLowerCase();
+        if (/^\d+$/.test(term)) return [];
+        return services
+            .filter((train) => {
+                if (train.train_status !== "ACTIVE") return false;
+                if (!term) return true;
+                return [train.train_name, train.train_code, train.train_type].some(
+                    (value) => String(value || "").toLowerCase().includes(term)
+                );
+            })
+            .slice(0, 8);
+    }, [query, services]);
+
+    useEffect(() => {
+        let active = true;
+        api("/trains")
+            .then((data) => active && setServices(data))
+            .catch(handleError);
+        return () => {
+            active = false;
+        };
+    }, [handleError]);
+
+    useEffect(() => {
+        const closeSuggestions = (event) => {
+            if (searchRef.current && !searchRef.current.contains(event.target)) {
+                setSuggestionsOpen(false);
+                setActiveSuggestion(-1);
+            }
+        };
+        document.addEventListener("mousedown", closeSuggestions);
+        return () => document.removeEventListener("mousedown", closeSuggestions);
+    }, []);
+
+    useEffect(() => setActiveSuggestion(-1), [query]);
+
+    const chooseSuggestion = (train) => {
+        setQuery(train.train_code);
+        setSuggestionsOpen(false);
+        setActiveSuggestion(-1);
+    };
+
+    const handleSuggestionKeys = (event) => {
+        if (event.key === "Escape") {
+            setSuggestionsOpen(false);
+            setActiveSuggestion(-1);
+            return;
+        }
+        if (!suggestionsOpen || !suggestions.length) return;
+        if (event.key === "ArrowDown") {
+            event.preventDefault();
+            setActiveSuggestion((index) => (index + 1) % suggestions.length);
+        } else if (event.key === "ArrowUp") {
+            event.preventDefault();
+            setActiveSuggestion(
+                (index) => (index <= 0 ? suggestions.length - 1 : index - 1)
+            );
+        } else if (event.key === "Enter" && activeSuggestion >= 0) {
+            event.preventDefault();
+            chooseSuggestion(suggestions[activeSuggestion]);
+        }
+    };
+
     const track = async (e) => {
         e?.preventDefault();
         if (!query.trim()) return;
+        setSuggestionsOpen(false);
         setLoading(true);
         try {
             const q = query.trim();
@@ -1798,15 +1880,66 @@ function TrackTrain({ handleError }) {
                 <p>Enter a train code such as SUBORNO or a numeric Trip ID.</p>
             </div>
             <form className="track-search card" onSubmit={track}>
-                <div className="field-wrap">
-                    <Icon name="train" size={19} />
-                    <input
-                        value={query}
-                        onChange={(e) => setQuery(e.target.value)}
-                        placeholder="SUBORNO or Trip ID"
-                    />
+                <div className="track-input-wrap" ref={searchRef}>
+                    <div className="field-wrap">
+                        <Icon name="train" size={19} />
+                        <input
+                            value={query}
+                            onChange={(e) => {
+                                setQuery(e.target.value);
+                                setSuggestionsOpen(true);
+                            }}
+                            onFocus={(e) => {
+                                e.target.select();
+                                setSuggestionsOpen(true);
+                            }}
+                            onKeyDown={handleSuggestionKeys}
+                            placeholder="Train name, code or Trip ID"
+                            role="combobox"
+                            aria-label="Train name, code or Trip ID"
+                            aria-autocomplete="list"
+                            aria-controls="train-suggestions"
+                            aria-expanded={suggestionsOpen}
+                            aria-activedescendant={
+                                activeSuggestion >= 0
+                                    ? `train-suggestion-${suggestions[activeSuggestion]?.train_id}`
+                                    : undefined
+                            }
+                        />
+                    </div>
+                    {suggestionsOpen && !/^\d+$/.test(query.trim()) && (
+                        <div
+                            className="track-suggestions"
+                            id="train-suggestions"
+                            role="listbox"
+                        >
+                            {suggestions.length ? (
+                                suggestions.map((train, index) => (
+                                    <button
+                                        type="button"
+                                        id={`train-suggestion-${train.train_id}`}
+                                        className={index === activeSuggestion ? "active" : ""}
+                                        role="option"
+                                        aria-selected={index === activeSuggestion}
+                                        key={train.train_id}
+                                        onMouseDown={(event) => event.preventDefault()}
+                                        onMouseEnter={() => setActiveSuggestion(index)}
+                                        onClick={() => chooseSuggestion(train)}
+                                    >
+                                        <span>
+                                            <b>{train.train_name}</b>
+                                            <small>{train.train_type}</small>
+                                        </span>
+                                        <strong>{train.train_code}</strong>
+                                    </button>
+                                ))
+                            ) : (
+                                <p>No matching train service</p>
+                            )}
+                        </div>
+                    )}
                 </div>
-                <button className="primary">
+                <button className="primary" type="submit">
                     <Icon name="search" size={18} /> Track train
                 </button>
             </form>
@@ -1956,7 +2089,7 @@ function NotificationsPage({
         return (
             <AccessCard
                 title="Sign in to view notifications"
-                copy="Booking confirmation, cancellation and refund messages are stored in Oracle."
+                copy="Booking confirmation, cancellation and refund messages are stored in PostgreSQL."
                 action="Sign in"
                 onAction={onAuth}
             />
@@ -2107,18 +2240,20 @@ function OperatorPanel({ user, handleError, setToast }) {
             setLoading(false);
         }
     };
-    if (!allowed) return;
-    <AccessCard
-        title="Operator access required"
-        copy="Only the OPERATOR assigned to this trip can mark station arrivals and departures."
-    />;
+    if (!allowed)
+        return (
+            <AccessCard
+                title="Operator access required"
+                copy="Only the OPERATOR assigned to this trip can mark station arrivals and departures."
+            />
+        );
     return (
         <main className="page">
             <div className="page-title">
                 <span className="eyebrow">OPERATOR CONTROL</span>
                 <h1>Station event console</h1>
                 <p>
-                    Buttons save Oracle server timestamps; schedule values are never
+                    Buttons save PostgreSQL server timestamps; schedule values are never
                     shifted by delay.
                 </p>
             </div>
@@ -2391,6 +2526,7 @@ function AdminPanel({ user, handleError, setToast }) {
                 </p>
             </div>
             <AdminTrainServiceForm
+                user={user}
                 handleError={handleError}
                 setToast={setToast}
                 onCreated={reload}
@@ -2701,7 +2837,6 @@ function AuthModal({ mode, setMode, close, onSuccess }) {
                             email: f.get("email"),
                             phone: f.get("phone"),
                             password: f.get("password"),
-                            role: f.get("role"),
                         },
                     });
             await onSuccess(data);
@@ -2727,7 +2862,7 @@ function AuthModal({ mode, setMode, close, onSuccess }) {
                     <h2>Welcome aboard!</h2>
                     <p>
                         Passenger, Operator and Admin roles authenticate through the
-                        Express/Oracle backend.
+                        Express/PostgreSQL backend.
                     </p>
                     <img src={heroTrain} alt="Train" />
                 </div>
@@ -2760,14 +2895,9 @@ function AuthModal({ mode, setMode, close, onSuccess }) {
                                 <input name="phone" placeholder="01XXXXXXXXX" />
                             </label>
 
-                            <label>
-                                Account type
-                                <select name="role" defaultValue="PASSENGER">
-                                    <option value="PASSENGER">User</option>
-                                    <option value="OPERATOR">Operator</option>
-                                    <option value="ADMIN">Admin</option>
-                                </select>
-                            </label>
+                            <p className="form-hint">
+                                New accounts are created as passenger accounts.
+                            </p>
                         </>
                     )}
                     <label>

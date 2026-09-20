@@ -6,11 +6,14 @@ import DatePicker from './DatePicker'
 function Autocomplete({ options, value, onChange, placeholder }) {
   const [isOpen, setIsOpen] = useState(false)
   const [inputValue, setInputValue] = useState(value || '')
+  const [hasSelection, setHasSelection] = useState(Boolean(value))
   const wrapperRef = useRef(null)
 
   // যখন বাইরে থেকে (যেমন Swap বাটনে) ভ্যালু চেঞ্জ হবে, তখন ইনপুট আপডেট করার জন্য
   useEffect(() => {
     setInputValue(value || '')
+    setHasSelection(Boolean(value))
+    setIsOpen(false)
   }, [value])
 
   // ড্রপডাউনের বাইরে ক্লিক করলে যেন সেটি বন্ধ হয়ে যায়
@@ -32,16 +35,19 @@ function Autocomplete({ options, value, onChange, placeholder }) {
       )
 
   return (
-    <div ref={wrapperRef} style={{ position: 'relative', width: '100%' }}>
+    <div className="station-autocomplete" ref={wrapperRef} style={{ position: 'relative', width: '100%' }}>
       <input
         type="text"
         placeholder={placeholder}
         value={inputValue}
         onChange={(e) => {
           setInputValue(e.target.value)
+          setHasSelection(false)
           setIsOpen(true)
         }}
-        onFocus={() => setIsOpen(true)}
+        onFocus={() => {
+          if (!hasSelection && inputValue.trim()) setIsOpen(true)
+        }}
         style={{
           width: '100%',
           border: 'none',
@@ -51,8 +57,9 @@ function Autocomplete({ options, value, onChange, placeholder }) {
           color: 'inherit'
         }}
       />
-      {isOpen && filteredOptions.length > 0 && (
+      {isOpen && !hasSelection && filteredOptions.length > 0 && (
         <ul
+          className="station-suggestions"
           style={{
             position: 'absolute',
             top: '100%',
@@ -73,9 +80,12 @@ function Autocomplete({ options, value, onChange, placeholder }) {
           {filteredOptions.map(opt => (
             <li
               key={opt}
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => {
-                onChange(opt)
+                setInputValue(opt)
+                setHasSelection(true)
                 setIsOpen(false)
+                onChange(opt)
               }}
               style={{
                 padding: '10px 15px',

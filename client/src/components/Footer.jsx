@@ -19,7 +19,7 @@ export default function Footer({navigate}){
         </div>
 
         <p>
-          A modern Oracle-backed railway workspace for booking,
+          A modern PostgreSQL-backed railway workspace for booking,
           live operational tracking, trainset rotation and passenger support.
         </p>
       </div>
@@ -48,7 +48,7 @@ export default function Footer({navigate}){
 
     <div className="footer-bottom">
       <span>© 2026 FERROVIA. Academic product demonstration.</span>
-      <span>React · Express · Oracle</span>
+      <span>React · Express · PostgreSQL</span>
     </div>
   </footer>
 }

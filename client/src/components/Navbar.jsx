@@ -26,6 +26,7 @@ export default function Navbar({
     navigate(key);
     setOpen(false);
     setProfileOpen(false);
+    setAdminMenuOpen(false);
   };
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 18);
@@ -47,7 +48,7 @@ export default function Navbar({
             <small>Bangladesh travel, reimagined</small>
           </span>
         </button>
-        <nav className={open ? "open" : ""}>
+        <nav id="primary-navigation" className={open ? "open" : ""}>
           {links.map(([key, label, icon]) => (
             <button
               key={key}
@@ -64,14 +65,24 @@ export default function Navbar({
               <button
                 className="admin-nav-trigger"
                 onClick={() => setAdminMenuOpen((value) => !value)}
+                aria-expanded={adminMenuOpen}
               >
                 <Icon name="shield" size={17} />
                 <span>Admin</span>
-                <span className="admin-nav-arrow">▾</span>
+                <Icon name="chevron" size={13} className="admin-nav-arrow" />
               </button>
 
               {adminMenuOpen && (
                 <div className="admin-nav-dropdown">
+                  <button
+                    onClick={() => {
+                      go("admin");
+                      setAdminMenuOpen(false);
+                    }}
+                  >
+                    <Icon name="chart" size={17} />
+                    <span>Operations Overview</span>
+                  </button>
                   <button
                     onClick={() => {
                       go("admin-add-train");
@@ -151,7 +162,7 @@ export default function Navbar({
                 {user.role === 'ADMIN' &&
                   <button
                     onClick={() => {
-                      go('admin-add-train')
+                      go('admin')
                       setProfileOpen(false)
                     }}
                   >
@@ -172,8 +183,13 @@ export default function Navbar({
           </div>
           <button
             className="menu-button"
-            onClick={() => setOpen((v) => !v)}
+            onClick={() => {
+              setOpen((value) => !value);
+              setProfileOpen(false);
+            }}
             aria-label="Toggle menu"
+            aria-controls="primary-navigation"
+            aria-expanded={open}
           >
             <Icon name={open ? "close" : "menu"} size={22} />
           </button>

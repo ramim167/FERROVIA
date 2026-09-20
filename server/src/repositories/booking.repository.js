@@ -180,19 +180,27 @@ export async function createNotification(connection, { userId, bookingId = null,
 }
 
 export async function createRefundRequests(connection, bookingId) {
-  await connection.query(
-    `INSERT INTO REFUNDS (PAYMENT_ID, TICKET_ID, REFUND_AMOUNT, REFUND_STATUS)
-     SELECT P.PAYMENT_ID,
-            TK.TICKET_ID,
-            ROUND(P.PAYMENT_AMOUNT / NULLIF(COUNT(*) OVER (), 0), 2),
-            'REQUESTED'
+  const result = await connection.query(
+    `SELECT P.PAYMENT_ID, P.PAYMENT_AMOUNT, TK.TICKET_ID
        FROM PAYMENTS P
        JOIN PASSENGERS PS ON PS.BOOKING_ID = P.BOOKING_ID
        JOIN TICKETS TK ON TK.PASSENGER_ID = PS.PASSENGER_ID
+       LEFT JOIN REFUNDS R ON R.TICKET_ID = TK.TICKET_ID
       WHERE P.BOOKING_ID = $1
         AND P.PAYMENT_STATUS = 'SUCCESSFUL'
         AND TK.TICKET_STATUS = 'CONFIRMED'
-        AND NOT EXISTS (SELECT 1 FROM REFUNDS R WHERE R.TICKET_ID = TK.TICKET_ID)`,
+        AND R.REFUND_ID IS NULL`,
     [bookingId]
   )
+
+  if (!result.rows.length) return
+  const amount = Math.round((Number(result.rows[0].PAYMENT_AMOUNT) / result.rows.length) * 100) / 100
+
+  for (const row of result.rows) {
+    await connection.query(
+      `INSERT INTO REFUNDS (PAYMENT_ID, TICKET_ID, REFUND_AMOUNT, REFUND_STATUS)
+       VALUES ($1, $2, $3, 'REQUESTED')`,
+      [row.PAYMENT_ID, row.TICKET_ID, amount]
+    )
+  }
 }

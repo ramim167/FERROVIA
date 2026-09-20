@@ -26,18 +26,12 @@ export async function registerPassenger({
   fullName,
   email,
   phone,
-  password,
-  role = 'PASSENGER'
+  password
 }) {
   if (!fullName || !email || !password)
     throw badRequest('fullName, email and password are required')
   if (password.length < 8)
     throw badRequest('Password must be at least 8 characters')
-
-  const allowedRoles = ['PASSENGER', 'OPERATOR', 'ADMIN']
-
-  if (!allowedRoles.includes(role))
-    throw badRequest('Invalid account role')
 
   return withTransaction(async (connection) => {
     const existing = await findUserByEmail(connection, email)
@@ -49,7 +43,7 @@ export async function registerPassenger({
       email,
       phone,
       passwordHash,
-      role
+      role: 'PASSENGER'
     })
     const user = await findUserById(connection, userId)
     return {

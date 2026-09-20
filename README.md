@@ -4,13 +4,14 @@ FERROVIA is a complete full-stack railway e-ticketing and operational tracking s
 
 ## Project Status
 
-The project is complete and ready for local demonstration. The frontend, backend API, database schema, seed data, passenger flow, operator console, admin controls, live tracking model, booking lifecycle, and trainset rotation logic are implemented.
+The project is complete and ready for local demonstration. The frontend, backend API, PostgreSQL schema, embedded demo database, passenger flow, operator console, admin controls, live tracking model, booking lifecycle, and trainset rotation logic are implemented and covered by integration tests.
 
 ## Technology Stack
 
 - Frontend: React 19 + Vite
 - Backend: Node.js + Express
 - Database: PostgreSQL
+- Local demo database: embedded PostgreSQL-compatible in-memory mode
 - Authentication: custom bearer token flow
 - Styling: custom responsive CSS
 - Runtime ports:
@@ -100,13 +101,12 @@ database/schema.sql
 database/seed-demo.sql
 ```
 
-Optional data and maintenance scripts are also included:
+Additional data and maintenance scripts are also included:
 
 - `database/seed_trains.sql`: generated Bangladesh Railway train and route data
 - `database/seed_running_days.sql`: running-day schedule data
 - `database/trip.sql`: fare, class, seat inventory, and trip helper data
 - `database/sql_history/`: database change history
-- `database/schema-current.sql`: Oracle reference version of the schema
 
 The demo seed creates:
 
@@ -127,11 +127,25 @@ Passengers can create accounts from the website.
 
 ## Environment
 
-Create `server/.env` with the local server, client, database, and auth settings:
+For the zero-setup local demo, create `server/.env` with:
 
 ```env
 PORT=5000
 CLIENT_ORIGIN=http://localhost:5173
+DATABASE_MODE=memory
+
+JWT_SECRET=replace_with_a_long_random_secret
+AUTH_TOKEN_TTL_SECONDS=604800
+```
+
+The in-memory mode loads a PostgreSQL-compatible schema and complete demo dataset at server startup. Data resets when the backend restarts.
+
+For persistent PostgreSQL, use:
+
+```env
+PORT=5000
+CLIENT_ORIGIN=http://localhost:5173
+DATABASE_MODE=postgres
 
 PG_CONNECTION_STRING=postgresql://user:password@host:5432/database
 PG_POOL_MIN=1
@@ -317,6 +331,32 @@ Railway_us/
 ```
 
 ## Verification Commands
+
+Run the complete verification suite:
+
+```bash
+npm run check
+```
+
+This runs frontend lint, all backend integration tests, and the frontend production build.
+
+With the API and client development servers running, verify the complete booking, payment, ticket, admin, and mobile navigation flows in a real browser:
+
+```bash
+npm run test:ui
+```
+
+The complete browser suite creates test records and therefore runs only in embedded memory mode by default. When connected to PostgreSQL or Supabase, use the read-only train suggestion check:
+
+```bash
+npm run test:ui:track
+```
+
+Backend integration tests:
+
+```bash
+npm --prefix server test
+```
 
 Backend syntax check:
 

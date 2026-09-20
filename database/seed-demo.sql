@@ -1,6 +1,6 @@
 -- ============================================================
 -- FERROVIA DEMO SEED DATA (PostgreSQL Version)
--- Run AFTER database/schema-current.sql on a fresh schema.
+-- Run AFTER database/schema.sql on a fresh PostgreSQL schema.
 -- ============================================================
 
 -- -------------------- USERS --------------------

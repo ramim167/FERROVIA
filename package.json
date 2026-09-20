@@ -1,8 +1,14 @@
 {
   "scripts": {
-    "dev": "node scripts/dev.cjs"
+    "dev": "node scripts/dev.cjs",
+    "build": "npm --prefix client run build",
+    "lint": "npm --prefix client run lint",
+    "test": "npm --prefix server test",
+    "test:ui": "node scripts/ui-smoke.cjs",
+    "test:ui:track": "node scripts/ui-track-smoke.cjs",
+    "check": "npm run lint && npm run test && npm run build"
   },
-  "dependencies": {
-    "pg": "^8.23.0"
+  "devDependencies": {
+    "playwright-core": "^1.63.0"
   }
 }

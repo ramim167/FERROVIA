@@ -9,6 +9,7 @@ import bookingRoutes from './routes/booking.routes.js'
 import adminRoutes from './routes/admin.routes.js'
 import notificationRoutes from './routes/notification.routes.js'
 import { errorHandler, notFoundHandler } from './middleware/error.middleware.js'
+import { getDatabaseMode } from './config/database.js'
 
 export function createApp() {
   const app = express()
@@ -17,7 +18,11 @@ export function createApp() {
   app.use(express.json({ limit: '1mb' }))
 
   app.get('/api/health', (_req, res) => {
-    res.json({ success: true, message: 'FERROVIA API is running' })
+    res.json({
+      success: true,
+      message: 'FERROVIA API is running',
+      data: { databaseMode: getDatabaseMode() },
+    })
   })
 
   app.use('/api/auth', authRoutes)

@@ -1,9 +1,8 @@
 import fs from 'fs';
-import * as xlsx from 'xlsx';
+import { readSheetRows } from './spreadsheet.js';
 
-const fileBuffer = fs.readFileSync('Bangladesh_Railway_Active_Trains_Route_Expanded_2026-08-12_FINAL.xlsx');
-const workbook = xlsx.read(fileBuffer, { type: 'buffer' });
-const trains = xlsx.utils.sheet_to_json(workbook.Sheets['Trains'], { raw: false });
+const sourceFile = 'Bangladesh_Railway_Active_Trains_Route_Expanded_2026-08-12_FINAL.xlsx';
+const trains = await readSheetRows(sourceFile, 'Trains');
 
 function timeToMin(t) {
   if (!t) return null;
@@ -72,4 +71,4 @@ for (let group of trainGroups) {
 
 sql += `END $$;\n`;
 fs.writeFileSync('seed_running_days.sql', sql);
-console.log('✅ Train Running Days SQL Generated Successfully!');
+console.log('Train running-days SQL generated successfully.');

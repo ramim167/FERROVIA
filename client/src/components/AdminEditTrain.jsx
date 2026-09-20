@@ -40,6 +40,7 @@ export default function AdminEditTrain({
     })
 
     const [savingBasic, setSavingBasic] = useState(false)
+    const [savingRouteId, setSavingRouteId] = useState(null)
 
     useEffect(() => {
 
@@ -177,6 +178,31 @@ export default function AdminEditTrain({
         }
     }
 
+    async function saveRoute(routeId, values) {
+        setSavingRouteId(routeId)
+
+        try {
+            const data = await api(`/admin/routes/${routeId}`, {
+                method: 'PATCH',
+                body: values,
+            })
+
+            setTrainData(current => ({
+                ...current,
+                routes: current.routes.map(route =>
+                    Number(route.route_id) === Number(routeId)
+                        ? { ...route, ...data.route }
+                        : route
+                ),
+            }))
+            setToast('Route information updated')
+        } catch (error) {
+            handleError(error)
+        } finally {
+            setSavingRouteId(null)
+        }
+    }
+
     if (user?.role !== 'ADMIN') {
         return (
             <main className="page">
@@ -202,8 +228,8 @@ export default function AdminEditTrain({
                 <h1>Edit Existing Train</h1>
 
                 <p>
-                    Select an existing train to manage its information,
-                    routes, trainsets, fares, coaches and seats.
+                    Update service and route information, then inspect its
+                    trainsets, fares, coaches and seats.
                 </p>
             </div>
 
@@ -257,7 +283,7 @@ export default function AdminEditTrain({
                     <Icon name="train" size={40} />
                     <h2>Select a train</h2>
                     <p>
-                        Train configuration will appear here after selection.
+                        Select a train to inspect and edit its configuration.
                     </p>
                 </section>
             }
@@ -550,6 +576,12 @@ export default function AdminEditTrain({
 
                                 </div>
 
+                                <RouteEditor
+                                    route={route}
+                                    saving={Number(savingRouteId) === Number(route.route_id)}
+                                    onSave={saveRoute}
+                                />
+
 
                                 <hr />
 
@@ -666,24 +698,131 @@ export default function AdminEditTrain({
             {trainData && !detailsLoading && activeTab === 'trainsets' &&
                 <section className="card admin-edit-section">
                     <h2>Trainsets</h2>
-                    <p>Physical trainset management will appear here.</p>
+                    <p>Current physical fleet allocation for this service.</p>
+                    <div className="fleet-list admin-config-list">
+                        {trainData.trainsets.map(trainset => (
+                            <article key={trainset.trainset_id}>
+                                <span className={`fleet-dot ${String(trainset.status).toLowerCase()}`}></span>
+                                <div>
+                                    <b>{trainset.trainset_code}</b>
+                                    <small>Trainset #{trainset.trainset_id}</small>
+                                </div>
+                                <strong>{trainset.status}</strong>
+                                <span>{trainset.current_station || 'In service'}</span>
+                            </article>
+                        ))}
+                    </div>
                 </section>
             }
 
             {trainData && !detailsLoading && activeTab === 'fares' &&
                 <section className="card admin-edit-section">
                     <h2>Fare Rules</h2>
-                    <p>Fare editing controls will appear here.</p>
+                    <p>Distance-based pricing configured for each travel class.</p>
+                    <div className="admin-table-wrap admin-config-table">
+                        <table>
+                            <thead>
+                                <tr><th>Class</th><th>Code</th><th>Base fare</th><th>Rate / km</th></tr>
+                            </thead>
+                            <tbody>
+                                {trainData.fares.map(fare => (
+                                    <tr key={fare.fare_rule_id}>
+                                        <td>{fare.class_name}</td>
+                                        <td>{fare.class_code}</td>
+                                        <td>{fare.base_fare}</td>
+                                        <td>{fare.rate_per_km}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 </section>
             }
 
             {trainData && !detailsLoading && activeTab === 'coaches' &&
                 <section className="card admin-edit-section">
                     <h2>Coaches & Seats</h2>
-                    <p>Coach and seat management will appear here.</p>
+                    <p>Coach order, class allocation and active seat capacity.</p>
+                    <div className="admin-table-wrap admin-config-table">
+                        <table>
+                            <thead>
+                                <tr><th>Order</th><th>Coach</th><th>Class</th><th>Class code</th><th>Seats</th></tr>
+                            </thead>
+                            <tbody>
+                                {trainData.coaches.map(coach => (
+                                    <tr key={coach.coach_id}>
+                                        <td>{coach.coach_order}</td>
+                                        <td>{coach.coach_code}</td>
+                                        <td>{coach.class_name}</td>
+                                        <td>{coach.class_code}</td>
+                                        <td>{coach.seat_count}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 </section>
             }
 
         </main>
+    )
+}
+
+function RouteEditor({ route, saving, onSave }) {
+    const [form, setForm] = useState({
+        trainNumber: route.train_number || '',
+        routeCode: route.route_code || '',
+        isActive: Number(route.is_active) === 1 ? '1' : '0',
+    })
+
+    useEffect(() => {
+        setForm({
+            trainNumber: route.train_number || '',
+            routeCode: route.route_code || '',
+            isActive: Number(route.is_active) === 1 ? '1' : '0',
+        })
+    }, [route.train_number, route.route_code, route.is_active])
+
+    const submit = event => {
+        event.preventDefault()
+        onSave(route.route_id, {
+            trainNumber: form.trainNumber,
+            routeCode: form.routeCode,
+            isActive: Number(form.isActive),
+        })
+    }
+
+    return (
+        <form className="admin-route-editor" onSubmit={submit}>
+            <label>
+                Train number
+                <input
+                    required
+                    value={form.trainNumber}
+                    onChange={event => setForm({ ...form, trainNumber: event.target.value })}
+                />
+            </label>
+            <label>
+                Route code
+                <input
+                    required
+                    value={form.routeCode}
+                    onChange={event => setForm({ ...form, routeCode: event.target.value })}
+                />
+            </label>
+            <label>
+                Status
+                <select
+                    value={form.isActive}
+                    onChange={event => setForm({ ...form, isActive: event.target.value })}
+                >
+                    <option value="1">ACTIVE</option>
+                    <option value="0">INACTIVE</option>
+                </select>
+            </label>
+            <button className="secondary" disabled={saving}>
+                {saving ? 'Saving...' : 'Save route'}
+            </button>
+        </form>
     )
 }

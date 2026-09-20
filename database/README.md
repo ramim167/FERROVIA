@@ -1,26 +1,24 @@
-# FERROVIA Oracle Database
+# FERROVIA PostgreSQL Database
 
-Run on a fresh Oracle schema:
+Run on a fresh PostgreSQL database in this order:
 
-1. `schema-current.sql`
+1. `schema.sql`
 2. `seed-demo.sql`
 
-The schema contains 22 tables plus:
+The schema contains the complete railway data model plus:
+
 - `VW_LIVE_TRAIN_STATUS`
 - `VW_TRAINSET_STATUS`
 
-Core operational tables:
-- `ROUTES`
-- `ROUTE_STOPS`
-- `TRAINSETS`
-- `TRAINSET_ASSIGNMENTS`
-- `TRIP_STOPS`
-- `SEATS`
-- `TRIP_SEATS`
-- `SEAT_RESERVATIONS`
+Core operational tables include `ROUTES`, `ROUTE_STOPS`, `TRAINSETS`, `TRAINSET_ASSIGNMENTS`, `TRIPS`, `TRIP_STOPS`, `COACHES`, `SEATS`, `TRIP_SEATS`, and `SEAT_RESERVATIONS`.
 
-`ROUTE_STOPS` stores the fixed route timetable; `TRIP_STOPS` stores actual station events for each dated trip. No latitude/longitude/GPS table is required.
+`ROUTE_STOPS` stores the fixed public timetable. `TRIP_STOPS` stores scheduled and actual events for each dated trip. `VW_LIVE_TRAIN_STATUS` derives the last station left, current delay, next station, and spare-trigger state.
 
-`VW_LIVE_TRAIN_STATUS` derives last station left, last departure timestamp, current delay, next station and spare-trigger state.
+The demo seed creates Suborno Express in both directions, twelve stations, three travel classes, fares, coaches and seats, two dated trips, three physical trainsets, and operator/admin accounts.
 
-The demo seed creates Suborno Express with UP (Dhaka -> Chattogram) and DOWN (Chattogram -> Dhaka) route templates, three physical trainsets and an operator/admin account.
+Additional scripts:
+
+- `seed_trains.sql`: expanded Bangladesh Railway train and route data
+- `seed_running_days.sql`: running-day definitions
+- `trip.sql`: trip and fare helper data
+- `sql_history/`: applied schema corrections and history

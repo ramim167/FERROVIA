@@ -6,13 +6,17 @@
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
-    "check": "node --check src/index.js"
+    "check": "node --check src/index.js",
+    "test": "node --test"
   },
   "dependencies": {
     "cors": "latest",
     "dotenv": "latest",
     "express": "latest",
-    "oracledb": "latest",
-    "xlsx": "^0.18.5"
+    "pg": "^8.23.0",
+    "pg-mem": "^3.0.5"
+  },
+  "devDependencies": {
+    "read-excel-file": "^9.3.10"
   }
 }
