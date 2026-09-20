@@ -12,6 +12,7 @@
     "cors": "latest",
     "dotenv": "latest",
     "express": "latest",
-    "oracledb": "latest"
+    "oracledb": "latest",
+    "xlsx": "^0.18.5"
   }
 }

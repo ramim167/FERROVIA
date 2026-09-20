@@ -8,7 +8,11 @@ import {
   getReservedAssignmentForTrip,
   setTrainsetStatus,
 } from '../repositories/trainset.repository.js'
-import { findNextOppositeTrip, markSpareTriggered, markTripDelayed } from '../repositories/trip.repository.js'
+import {
+  findNextOppositeTrip,
+  markSpareTriggered,
+  markTripDelayed
+} from '../repositories/trip.repository.js'
 
 export async function activateCurrentTrainset(connection, trip) {
   const assignment = await getActiveAssignment(connection, trip.TRIP_ID)
@@ -23,34 +27,55 @@ export async function activateCurrentTrainset(connection, trip) {
 
 export async function reserveSpareAfterDelay(connection, trip, delayMinutes) {
   if (delayMinutes < Number(trip.SPARE_TRIGGER_DELAY_MIN)) {
-    return { triggered: false, reason: 'below_threshold' }
+    return {
+      triggered: false,
+      reason: 'below_threshold'
+    }
   }
 
   if (trip.SPARE_TRIGGERED_AT) {
-    return { triggered: true, reason: 'already_triggered' }
+    return {
+      triggered: true,
+      reason: 'already_triggered'
+    }
   }
 
   const nextTrip = await findNextOppositeTrip(connection, trip)
   if (!nextTrip) {
     await markTripDelayed(connection, trip.TRIP_ID)
-    return { triggered: false, reason: 'no_next_opposite_trip' }
+    return {
+      triggered: false,
+      reason: 'no_next_opposite_trip'
+    }
   }
 
   const existing = await getReservedAssignmentForTrip(connection, nextTrip.TRIP_ID)
   if (existing?.ASSIGNMENT_TYPE === 'SPARE_REPLACEMENT') {
     await markSpareTriggered(connection, trip.TRIP_ID)
     await markTripDelayed(connection, trip.TRIP_ID)
-    return { triggered: true, reason: 'replacement_already_reserved', nextTripId: nextTrip.TRIP_ID }
+    return {
+      triggered: true,
+      reason: 'replacement_already_reserved',
+      nextTripId: nextTrip.TRIP_ID
+    }
   }
   if (existing?.ASSIGNMENT_TYPE === 'MANUAL') {
     await markTripDelayed(connection, trip.TRIP_ID)
-    return { triggered: false, reason: 'next_trip_manually_assigned', nextTripId: nextTrip.TRIP_ID }
+    return {
+      triggered: false,
+      reason: 'next_trip_manually_assigned',
+      nextTripId: nextTrip.TRIP_ID
+    }
   }
 
   const spare = await findDestinationSpare(connection, trip.TRAIN_ID, trip.DESTINATION_STATION_ID)
   if (!spare) {
     await markTripDelayed(connection, trip.TRIP_ID)
-    return { triggered: false, reason: 'no_destination_spare', nextTripId: nextTrip.TRIP_ID }
+    return {
+      triggered: false,
+      reason: 'no_destination_spare',
+      nextTripId: nextTrip.TRIP_ID
+    }
   }
 
   if (existing) {
@@ -80,25 +105,37 @@ export async function reserveSpareAfterDelay(connection, trip, delayMinutes) {
 
 export async function finishTrainsetRotation(connection, trip) {
   const current = await getActiveAssignment(connection, trip.TRIP_ID)
-  if (!current) return { action: 'no_assignment' }
+  if (!current) return {
+    action: 'no_assignment'
+  }
 
   await completeAssignment(connection, current.ASSIGNMENT_ID)
 
   if (trip.SPARE_TRIGGERED_AT) {
     await setTrainsetStatus(connection, current.TRAINSET_ID, 'SPARE', trip.DESTINATION_STATION_ID)
-    return { action: 'delayed_train_became_spare', trainsetId: current.TRAINSET_ID }
+    return {
+      action: 'delayed_train_became_spare',
+      trainsetId: current.TRAINSET_ID
+    }
   }
 
   const nextTrip = await findNextOppositeTrip(connection, trip)
   if (!nextTrip) {
     await setTrainsetStatus(connection, current.TRAINSET_ID, 'SPARE', trip.DESTINATION_STATION_ID)
-    return { action: 'no_next_trip_train_became_spare', trainsetId: current.TRAINSET_ID }
+    return {
+      action: 'no_next_trip_train_became_spare',
+      trainsetId: current.TRAINSET_ID
+    }
   }
 
   const existing = await getReservedAssignmentForTrip(connection, nextTrip.TRIP_ID)
   if (existing) {
     await setTrainsetStatus(connection, current.TRAINSET_ID, 'SPARE', trip.DESTINATION_STATION_ID)
-    return { action: 'next_trip_already_assigned', trainsetId: current.TRAINSET_ID, nextTripId: nextTrip.TRIP_ID }
+    return {
+      action: 'next_trip_already_assigned',
+      trainsetId: current.TRAINSET_ID,
+      nextTripId: nextTrip.TRIP_ID
+    }
   }
 
   await createAssignment(connection, {
@@ -111,5 +148,9 @@ export async function finishTrainsetRotation(connection, trip) {
   })
   await setTrainsetStatus(connection, current.TRAINSET_ID, 'RESERVED', trip.DESTINATION_STATION_ID)
 
-  return { action: 'same_train_reserved_for_next_trip', trainsetId: current.TRAINSET_ID, nextTripId: nextTrip.TRIP_ID }
+  return {
+    action: 'same_train_reserved_for_next_trip',
+    trainsetId: current.TRAINSET_ID,
+    nextTripId: nextTrip.TRIP_ID
+  }
 }

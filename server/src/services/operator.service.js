@@ -1,4 +1,7 @@
-import { withConnection, withTransaction } from '../config/database.js'
+import {
+  withConnection,
+  withTransaction
+} from '../config/database.js'
 import {
   completeTrip,
   getLiveTrip,
@@ -11,14 +14,28 @@ import {
   markTripStarted,
   previousStopCompleted,
 } from '../repositories/trip.repository.js'
-import { activateCurrentTrainset, finishTrainsetRotation, reserveSpareAfterDelay } from './trainset.service.js'
-import { badRequest, forbidden, notFound } from '../utils/httpError.js'
-import { lowerKeys } from '../utils/serializers.js'
+import {
+  activateCurrentTrainset,
+  finishTrainsetRotation,
+  reserveSpareAfterDelay
+} from './trainset.service.js'
+import {
+  badRequest,
+  forbidden,
+  notFound
+} from '../utils/httpError.js'
+import {
+  lowerKeys
+} from '../utils/serializers.js'
 
 function ensureAssignedOperator(trip, user) {
-  if (user.role === 'ADMIN') return
-  if (Number(trip.OPERATOR_USER_ID) !== Number(user.userId)) {
-    throw forbidden('This trip is not assigned to this operator')
+  if (
+    Number(trip.OPERATOR_USER_ID) !==
+    Number(user.userId)
+  ) {
+    throw forbidden(
+      'This trip is not assigned to this operator'
+    )
   }
 }
 
@@ -29,15 +46,16 @@ async function calculateStopDelay(connection, tripStopId) {
               ELSE GREATEST(0, ROUND((CAST(ACTUAL_DEPARTURE AS DATE) - CAST(SCHEDULED_DEPARTURE AS DATE)) * 1440))
             END AS DELAY_MINUTES
        FROM TRIP_STOPS
-      WHERE TRIP_STOP_ID = :tripStopId`,
-    { tripStopId }
+      WHERE TRIP_STOP_ID = :tripStopId`, {
+    tripStopId
+  }
   )
   return Number(result.rows[0]?.DELAY_MINUTES || 0)
 }
 
 export async function operatorTrips(user, date) {
   return withConnection(async (connection) => {
-    const rows = await listOperatorTrips(connection, user.userId, date, user.role === 'ADMIN')
+    const rows = await listOperatorTrips(connection,user.userId,date)
     return lowerKeys(rows)
   })
 }
@@ -48,7 +66,11 @@ export async function tripOperations(user, tripId) {
     if (!trip) throw notFound('Trip not found')
     ensureAssignedOperator(trip, user)
     const [stops, live] = await Promise.all([getTripStops(connection, tripId), getLiveTrip(connection, tripId)])
-    return lowerKeys({ trip, live, stops })
+    return lowerKeys({
+      trip,
+      live,
+      stops
+    })
   })
 }
 
@@ -57,7 +79,7 @@ export async function arriveAtStop(user, tripId, tripStopId) {
     const trip = await getTrip(connection, tripId, true)
     if (!trip) throw notFound('Trip not found')
     ensureAssignedOperator(trip, user)
-    if (['COMPLETED','CANCELLED'].includes(trip.TRIP_STATUS)) throw badRequest(`Trip is ${trip.TRIP_STATUS.toLowerCase()}`)
+    if (['COMPLETED', 'CANCELLED'].includes(trip.TRIP_STATUS)) throw badRequest(`Trip is ${trip.TRIP_STATUS.toLowerCase()}`)
 
     const stop = await getTripStopForUpdate(connection, tripId, tripStopId)
     if (!stop) throw notFound('Trip stop not found')
@@ -67,7 +89,10 @@ export async function arriveAtStop(user, tripId, tripStopId) {
       throw badRequest('Previous station must be departed before this arrival can be marked')
     }
 
-    await markArrived(connection, { tripStopId, operatorId: user.userId })
+    await markArrived(connection, {
+      tripStopId,
+      operatorId: user.userId
+    })
 
     const stops = await getTripStops(connection, tripId)
     const isDestination = Number(stop.STOP_SEQUENCE) === Math.max(...stops.map((s) => Number(s.STOP_SEQUENCE)))
@@ -80,7 +105,11 @@ export async function arriveAtStop(user, tripId, tripStopId) {
     }
 
     const live = await getLiveTrip(connection, tripId)
-    return lowerKeys({ live, destinationReached: isDestination, rotation })
+    return lowerKeys({
+      live,
+      destinationReached: isDestination,
+      rotation
+    })
   })
 }
 
@@ -89,18 +118,40 @@ export async function departFromStop(user, tripId, tripStopId) {
     const trip = await getTrip(connection, tripId, true)
     if (!trip) throw notFound('Trip not found')
     ensureAssignedOperator(trip, user)
-    if (['COMPLETED','CANCELLED'].includes(trip.TRIP_STATUS)) throw badRequest(`Trip is ${trip.TRIP_STATUS.toLowerCase()}`)
+    if (['COMPLETED', 'CANCELLED'].includes(trip.TRIP_STATUS)) throw badRequest(`Trip is ${trip.TRIP_STATUS.toLowerCase()}`)
 
     const stop = await getTripStopForUpdate(connection, tripId, tripStopId)
-    if (!stop) throw notFound('Trip stop not found')
-    if (!stop.SCHEDULED_DEPARTURE) throw badRequest('This is the destination stop; use Arrived instead of Departed')
-    if (stop.ACTUAL_DEPARTURE) throw badRequest('Departure has already been marked')
+    if (!stop)
+      throw notFound('Trip stop not found')
+    if (!stop.SCHEDULED_DEPARTURE)
+      throw badRequest('This is the destination stop; use Arrived instead of Departed')
+    if (stop.ACTUAL_DEPARTURE)
+      throw badRequest('Departure has already been marked')
+    if (
+      new Date().getTime() <
+      new Date(stop.SCHEDULED_DEPARTURE).getTime()
+    ) {
+      throw badRequest(
+        'Departure cannot be marked before the scheduled departure time'
+      )
+    }
+    if (
+      new Date().getTime() <
+      new Date(stop.SCHEDULED_DEPARTURE).getTime()
+    ) {
+      throw badRequest(
+        'Departure cannot be marked before the scheduled departure time'
+      )
+    }
     if (stop.SCHEDULED_ARRIVAL && !stop.ACTUAL_ARRIVAL) throw badRequest('Mark Arrived before Departed at this station')
     if (!(await previousStopCompleted(connection, tripId, stop.STOP_SEQUENCE))) {
       throw badRequest('Previous station must be departed before this departure can be marked')
     }
 
-    await markDeparted(connection, { tripStopId, operatorId: user.userId })
+    await markDeparted(connection, {
+      tripStopId,
+      operatorId: user.userId
+    })
 
     if (Number(stop.STOP_SEQUENCE) === 1) {
       await markTripStarted(connection, tripId)
@@ -112,6 +163,10 @@ export async function departFromStop(user, tripId, tripStopId) {
     const spare = await reserveSpareAfterDelay(connection, updatedTrip, delay)
     const live = await getLiveTrip(connection, tripId)
 
-    return lowerKeys({ live, delayMinutes: delay, spare })
+    return lowerKeys({
+      live,
+      delayMinutes: delay,
+      spare
+    })
   })
 }

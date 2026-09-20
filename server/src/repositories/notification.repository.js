@@ -1,30 +1,30 @@
 export async function listNotifications(connection, userId) {
-  const result = await connection.execute(
+  const result = await connection.query(
     `SELECT NOTIFICATION_ID, BOOKING_ID, TRIP_ID, TITLE, MESSAGE, IS_READ, CREATED_AT
        FROM NOTIFICATIONS
-      WHERE USER_ID = :userId
+      WHERE USER_ID = $1
       ORDER BY CREATED_AT DESC
-      FETCH FIRST 50 ROWS ONLY`,
-    { userId }
+      LIMIT 50`,
+    [userId]
   )
   return result.rows
 }
 
 export async function markNotificationRead(connection, userId, notificationId) {
-  const result = await connection.execute(
+  const result = await connection.query(
     `UPDATE NOTIFICATIONS
         SET IS_READ = 1
-      WHERE NOTIFICATION_ID = :notificationId
-        AND USER_ID = :userId`,
-    { notificationId, userId }
+      WHERE NOTIFICATION_ID = $2
+        AND USER_ID = $1`,
+    [userId, notificationId]
   )
-  return result.rowsAffected > 0
+  return result.rowCount > 0
 }
 
 export async function markAllNotificationsRead(connection, userId) {
-  const result = await connection.execute(
-    `UPDATE NOTIFICATIONS SET IS_READ = 1 WHERE USER_ID = :userId AND IS_READ = 0`,
-    { userId }
+  const result = await connection.query(
+    `UPDATE NOTIFICATIONS SET IS_READ = 1 WHERE USER_ID = $1 AND IS_READ = 0`,
+    [userId]
   )
-  return result.rowsAffected
+  return result.rowCount
 }

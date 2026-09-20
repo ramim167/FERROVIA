@@ -4,7 +4,7 @@ import { requireAuth, requireRole } from '../middleware/auth.middleware.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 
 const router = Router()
-router.use(requireAuth, requireRole('OPERATOR', 'ADMIN'))
+router.use(requireAuth,requireRole('OPERATOR'))
 router.get('/trips', asyncHandler(myTrips))
 router.get('/trips/:tripId', asyncHandler(operations))
 router.post('/trips/:tripId/stops/:tripStopId/arrive', asyncHandler(arrive))

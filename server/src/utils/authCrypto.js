@@ -37,9 +37,10 @@ export function issueToken(user, expiresInSeconds = Number(process.env.AUTH_TOKE
   const now = Math.floor(Date.now() / 1000)
   const header = encodeJson({ alg: 'HS256', typ: 'JWT' })
   const payload = encodeJson({
-    userId: user.USER_ID,
-    role: user.ROLE,
-    email: user.EMAIL,
+    // ডাটাবেসের lowercase এবং uppercase উভয় ফিল্ড সাপোর্ট করার জন্য আপডেট করা হলো
+    userId: user.user_id || user.USER_ID,
+    role: user.role || user.ROLE,
+    email: user.email || user.EMAIL,
     iat: now,
     exp: now + expiresInSeconds,
   })

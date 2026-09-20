@@ -840,6 +840,7 @@ LEFT JOIN STATIONS S
     ON S.STATION_ID = TS.CURRENT_STATION_ID;
 
 
+
 -- ============================================================
 -- IMPLEMENTATION RULES (BACKEND / OPERATOR FLOW)
 -- ============================================================
