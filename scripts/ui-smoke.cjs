@@ -90,7 +90,7 @@ async function runAdminFlow(browser, errors) {
   await page.locator('.modal form button.primary.full').click()
   await page.getByText('Admin', { exact: true }).click()
   await page.getByText('Operations Overview', { exact: true }).click()
-  await page.getByRole('heading', { name: 'Train services, trips & operators' }).waitFor()
+  await page.getByRole('heading', { name: 'Trip assignments' }).waitFor()
   await page.waitForTimeout(transitionDelay)
   await assertFitsViewport(page, 'desktop admin')
   await page.screenshot({ path: resolve(outputDir, 'desktop-admin.png'), fullPage: true })

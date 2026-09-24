@@ -519,12 +519,29 @@ export async function trainsets(trainId) {
 }
 
 export async function setOperator(tripId, operatorUserId) {
+  const normalizedTripId = Number(tripId)
+  const normalizedOperatorId = Number(operatorUserId)
+
+  if (!normalizedTripId || !normalizedOperatorId) {
+    throw badRequest('Valid trip and operator IDs are required')
+  }
+
   return withTransaction(async (connection) => {
-    await validateOperator(connection, operatorUserId)
-    await assignOperator(connection, Number(tripId), Number(operatorUserId))
+    await validateOperator(connection, normalizedOperatorId)
+
+    const trip = await getTrip(connection, normalizedTripId, true)
+    if (!trip) throw notFound('Trip not found')
+    if (new Date(trip.SCHEDULED_DEPARTURE).getTime() <= Date.now()) {
+      throw conflict('This trip can no longer be assigned because its departure time has passed')
+    }
+    if (trip.OPERATOR_USER_ID) {
+      throw conflict('An operator has already been assigned to this train for this date')
+    }
+
+    await assignOperator(connection, normalizedTripId, normalizedOperatorId)
     return {
-      tripId: Number(tripId),
-      operatorUserId: Number(operatorUserId)
+      tripId: normalizedTripId,
+      operatorUserId: normalizedOperatorId
     }
   })
 }
@@ -540,6 +557,9 @@ export async function setTrainset(tripId, trainsetId) {
   return withTransaction(async connection => {
     const trip = await getTrip(connection, normalizedTripId, true)
     if (!trip) throw notFound('Trip not found')
+    if (new Date(trip.SCHEDULED_DEPARTURE).getTime() <= Date.now()) {
+      throw conflict('This trip can no longer be assigned because its departure time has passed')
+    }
     if (!['SCHEDULED', 'BOARDING'].includes(String(trip.TRIP_STATUS).toUpperCase())) {
       throw conflict('A trainset can only be assigned to a scheduled or boarding trip')
     }

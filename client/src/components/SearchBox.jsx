@@ -108,7 +108,6 @@ function Autocomplete({ options, value, onChange, placeholder }) {
 export default function SearchBox({ search, setSearch, onSubmit, compact = false, stations = [] }) {
   const swap = () => setSearch(s => ({ ...s, from: s.to, to: s.from }))
   const names = stations.length ? stations.map(s => s.station_name) : [search.from, search.to].filter(Boolean)
-  const now = new Date(), minDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 
   return (
     <form className={`search-box ${compact ? 'compact' : ''}`} onSubmit={e => { e.preventDefault(); onSubmit() }}>
@@ -144,7 +143,7 @@ export default function SearchBox({ search, setSearch, onSubmit, compact = false
 
       <label>
         <span>Journey date</span>
-        <DatePicker ariaLabel="Journey date" min={minDate} value={search.date} onChange={date => setSearch({ ...search, date })} />
+        <DatePicker ariaLabel="Journey date" value={search.date} onChange={date => setSearch({ ...search, date })} />
       </label>
 
       <label>

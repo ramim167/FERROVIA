@@ -17,18 +17,33 @@ const fmtDate = value => value
     })
   : '-'
 const delayText = value => Number(value) > 0 ? `${value} min late` : 'On time'
+const departurePassed = (trip, now) => {
+  const departureTime = new Date(trip?.scheduled_departure).getTime()
+  return Number.isFinite(departureTime) && departureTime <= now
+}
+const departureMinutes = trip => {
+  const departure = new Date(trip?.scheduled_departure)
+  return departure.getHours() * 60 + departure.getMinutes()
+}
 
 export default function AdminAssignTrip({ user, handleError, setToast }) {
   const [trainsets, setTrainsets] = useState([])
   const [operators, setOperators] = useState([])
   const [trips, setTrips] = useState([])
   const [date, setDate] = useState(localToday())
+  const [timeFilter, setTimeFilter] = useState('')
   const [loading, setLoading] = useState(false)
   const [assigningTripId, setAssigningTripId] = useState(null)
   const [selectedTripId, setSelectedTripId] = useState(null)
   const [trainSearch, setTrainSearch] = useState('')
   const [assigningTrainsetId, setAssigningTrainsetId] = useState(null)
+  const [now, setNow] = useState(Date.now())
   const allowed = user?.role === 'ADMIN'
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 30_000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   const reload = useCallback(async () => {
     if (!allowed) return
@@ -51,20 +66,31 @@ export default function AdminAssignTrip({ user, handleError, setToast }) {
     reload()
   }, [reload])
 
-  const selectedTrip = trips.find(trip => trip.trip_id === selectedTripId) || null
+  const visibleTrips = useMemo(() => {
+    if (!timeFilter) return trips
+    const [hours, minutes] = timeFilter.split(':').map(Number)
+    const minimumMinutes = hours * 60 + minutes
+    return trips.filter(trip => departureMinutes(trip) >= minimumMinutes)
+  }, [trips, timeFilter])
+
+  const selectedTrip = visibleTrips.find(trip => trip.trip_id === selectedTripId) || null
+  const selectedTripExpired = selectedTrip ? departurePassed(selectedTrip, now) : false
 
   useEffect(() => {
-    if (!trips.length) {
+    if (!visibleTrips.length) {
       setSelectedTripId(null)
       return
     }
-    if (!trips.some(trip => trip.trip_id === selectedTripId)) {
-      const assignable = trips.find(trip =>
-        ['SCHEDULED', 'BOARDING'].includes(trip.trip_status)
+    if (!visibleTrips.some(trip =>
+      trip.trip_id === selectedTripId && !departurePassed(trip, now)
+    )) {
+      const assignable = visibleTrips.find(trip =>
+        ['SCHEDULED', 'BOARDING'].includes(trip.trip_status) &&
+        !departurePassed(trip, now)
       )
-      setSelectedTripId((assignable || trips[0]).trip_id)
+      setSelectedTripId(assignable?.trip_id || null)
     }
-  }, [trips, selectedTripId])
+  }, [visibleTrips, selectedTripId, now])
 
   useEffect(() => {
     if (!selectedTrip?.train_id) {
@@ -85,12 +111,12 @@ export default function AdminAssignTrip({ user, handleError, setToast }) {
   const searchedTrips = useMemo(() => {
     const query = trainSearch.trim().toLowerCase()
     if (!query) return []
-    return trips.filter(trip =>
+    return visibleTrips.filter(trip =>
       `${trip.train_name} ${trip.train_code} ${trip.trip_id} ${trip.source_station} ${trip.destination_station}`
         .toLowerCase()
         .includes(query)
     ).slice(0, 8)
-  }, [trainSearch, trips])
+  }, [trainSearch, visibleTrips])
 
   const availableTrainsets = trainsets.filter(trainset => {
     if (Number(trainset.trainset_id) === Number(selectedTrip?.assigned_trainset_id)) return true
@@ -163,28 +189,50 @@ export default function AdminAssignTrip({ user, handleError, setToast }) {
               <span className="eyebrow">ISSUED TRIPS</span>
               <h2>Select a trip</h2>
             </div>
-            <button className="secondary compact" onClick={reload} disabled={loading}>Refresh</button>
+            <div className="assignment-date-actions">
+              <DatePicker
+                value={date}
+                onChange={setDate}
+                label="Trip date"
+                ariaLabel="Select trip date"
+              />
+              <TimeFilter
+                value={timeFilter}
+                onChange={setTimeFilter}
+                ariaLabel="Filter issued trips from time"
+              />
+              <button className="secondary compact" onClick={reload} disabled={loading}>Refresh</button>
+            </div>
           </div>
           <div className="issued-trip-list">
-            {trips.map(trip => (
-              <button
-                type="button"
-                className={trip.trip_id === selectedTripId ? 'selected' : ''}
-                key={trip.trip_id}
-                onClick={() => setSelectedTripId(trip.trip_id)}
-              >
-                <span>
-                  <b>{trip.train_name}</b>
-                  <small>#{trip.trip_id} · {trip.train_code}</small>
-                </span>
-                <span>
-                  <b>{fmtTime(trip.scheduled_departure)}</b>
-                  <small>{trip.source_station} → {trip.destination_station}</small>
-                </span>
-                <strong>{trip.trip_status}</strong>
-              </button>
-            ))}
-            {!trips.length && <p className="empty-inline">No issued trips for {date}.</p>}
+            {visibleTrips.map(trip => {
+              const expired = departurePassed(trip, now)
+              return (
+                <button
+                  type="button"
+                  className={`${trip.trip_id === selectedTripId ? 'selected' : ''} ${expired ? 'expired-trip' : ''}`}
+                  key={trip.trip_id}
+                  disabled={expired}
+                  title={expired ? 'Departure time has passed; this trip can no longer be assigned' : undefined}
+                  onClick={() => setSelectedTripId(trip.trip_id)}
+                >
+                  <span>
+                    <b>{trip.train_name}</b>
+                    <small>#{trip.trip_id} · {trip.train_code}</small>
+                  </span>
+                  <span>
+                    <b>{fmtTime(trip.scheduled_departure)}</b>
+                    <small>{trip.source_station} → {trip.destination_station}</small>
+                  </span>
+                  <strong>{expired ? 'CLOSED' : trip.trip_status}</strong>
+                </button>
+              )
+            })}
+            {!visibleTrips.length && (
+              <p className="empty-inline">
+                No issued trips for {date}{timeFilter ? ` from ${timeFilter}` : ''}.
+              </p>
+            )}
           </div>
         </section>
 
@@ -207,20 +255,26 @@ export default function AdminAssignTrip({ user, handleError, setToast }) {
 
           {trainSearch && (
             <div className="admin-train-results">
-              {searchedTrips.map(trip => (
-                <button
-                  type="button"
-                  key={trip.trip_id}
-                  onClick={() => {
-                    setSelectedTripId(trip.trip_id)
-                    setTrainSearch('')
-                  }}
-                >
-                  <b>{trip.train_name}</b>
-                  <span>#{trip.trip_id} · {trip.train_code}</span>
-                  <small>{trip.source_station} → {trip.destination_station}</small>
-                </button>
-              ))}
+              {searchedTrips.map(trip => {
+                const expired = departurePassed(trip, now)
+                return (
+                  <button
+                    type="button"
+                    key={trip.trip_id}
+                    className={expired ? 'expired-trip' : ''}
+                    disabled={expired}
+                    title={expired ? 'Departure time has passed; this trip can no longer be assigned' : undefined}
+                    onClick={() => {
+                      setSelectedTripId(trip.trip_id)
+                      setTrainSearch('')
+                    }}
+                  >
+                    <b>{trip.train_name}</b>
+                    <span>#{trip.trip_id} · {trip.train_code}</span>
+                    <small>{trip.source_station} → {trip.destination_station}</small>
+                  </button>
+                )
+              })}
               {!searchedTrips.length && <p>No issued trains found.</p>}
             </div>
           )}
@@ -251,12 +305,12 @@ export default function AdminAssignTrip({ user, handleError, setToast }) {
                   <span>{trainset.current_station || 'Location not set'}</span>
                   <button
                     type="button"
-                    disabled={assigned || assigningTrainsetId !== null}
+                    disabled={selectedTripExpired || assigned || assigningTrainsetId !== null}
                     onClick={() => assignTrainset(trainset)}
                   >
                     {assigningTrainsetId === trainset.trainset_id
                       ? 'Assigning...'
-                      : assigned ? 'Assigned' : 'Assign trainset'}
+                      : selectedTripExpired ? 'Closed' : assigned ? 'Assigned' : 'Assign trainset'}
                   </button>
                 </article>
               )
@@ -277,7 +331,19 @@ export default function AdminAssignTrip({ user, handleError, setToast }) {
             <span className="eyebrow">OPERATOR ASSIGNMENT</span>
             <h2>Trips & Operators</h2>
           </div>
-          <DatePicker value={date} onChange={setDate} />
+          <div className="assignment-table-filters">
+            <DatePicker
+              value={date}
+              onChange={setDate}
+              label="Operator assignment date"
+              ariaLabel="Filter trips and operators by date"
+            />
+            <TimeFilter
+              value={timeFilter}
+              onChange={setTimeFilter}
+              ariaLabel="Filter trips and operators from time"
+            />
+          </div>
         </div>
         <div className="admin-table-wrap">
           <table>
@@ -293,33 +359,65 @@ export default function AdminAssignTrip({ user, handleError, setToast }) {
               </tr>
             </thead>
             <tbody>
-              {trips.map(trip => (
+              {visibleTrips.map(trip => (
                 <AdminTripRow
                   key={trip.trip_id}
                   trip={trip}
                   operators={operators}
                   assign={assignOperator}
                   assigning={assigningTripId === trip.trip_id}
+                  now={now}
                 />
               ))}
             </tbody>
           </table>
-          {!trips.length && <p className="empty-inline">No trips for {date}.</p>}
+          {!visibleTrips.length && (
+            <p className="empty-inline">
+              No trips for {date}{timeFilter ? ` from ${timeFilter}` : ''}.
+            </p>
+          )}
         </div>
       </section>
     </main>
   )
 }
 
-function AdminTripRow({ trip, operators, assign, assigning }) {
+function TimeFilter({ value, onChange, ariaLabel }) {
+  return (
+    <div className="assignment-time-filter" title="Show trips departing at or after this time">
+      <Icon name="clock" size={16} />
+      <span>From</span>
+      <input
+        type="time"
+        value={value}
+        aria-label={ariaLabel}
+        onChange={event => onChange(event.target.value)}
+      />
+      {value && (
+        <button
+          type="button"
+          aria-label="Clear time filter"
+          title="Clear time filter"
+          onClick={() => onChange('')}
+        >
+          ×
+        </button>
+      )}
+    </div>
+  )
+}
+
+function AdminTripRow({ trip, operators, assign, assigning, now }) {
   const [operator, setOperator] = useState(String(trip.operator_user_id || ''))
+  const assigned = Boolean(trip.operator_user_id)
+  const expired = departurePassed(trip, now)
 
   useEffect(() => {
     setOperator(String(trip.operator_user_id || ''))
   }, [trip.operator_user_id])
 
   return (
-    <tr>
+    <tr className={expired ? 'expired-trip' : ''}>
       <td><b>#{trip.trip_id}</b><br /><small>{trip.train_name}</small></td>
       <td>{trip.direction}<br /><small>{trip.source_station} → {trip.destination_station}</small></td>
       <td>{fmtTime(trip.scheduled_departure)}<br /><small>{fmtDate(trip.scheduled_departure)}</small></td>
@@ -336,7 +434,7 @@ function AdminTripRow({ trip, operators, assign, assigning }) {
           <select
             value={operator}
             onChange={event => setOperator(event.target.value)}
-            disabled={assigning}
+            disabled={expired || assigned || assigning}
           >
             <option value="">Unassigned</option>
             {operators.map(item => (
@@ -347,10 +445,13 @@ function AdminTripRow({ trip, operators, assign, assigning }) {
           </select>
           <button
             type="button"
-            disabled={!operator || assigning}
+            disabled={expired || !operator || assigning || assigned}
             onClick={() => assign(trip.trip_id, operator)}
+            title={expired
+              ? 'Departure time has passed; this trip can no longer be assigned'
+              : assigned ? 'An operator is already assigned to this trip for this date' : undefined}
           >
-            {assigning ? 'Assigning...' : 'Assign'}
+            {assigning ? 'Assigning...' : expired ? 'Closed' : assigned ? 'Assigned' : 'Assign'}
           </button>
         </div>
       </td>

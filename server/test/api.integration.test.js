@@ -286,12 +286,43 @@ test('admin can inspect, edit, create and assign railway operations', async () =
   const scheduledTrips = await request(`/admin/trips?date=${today()}`, { token: adminToken })
   assert.ok(scheduledTrips.length > 0)
 
-  const assigned = await request(`/admin/trips/${scheduledTrips[0].trip_id}/operator`, {
+  const departedTrip = scheduledTrips.find(item =>
+    new Date(item.scheduled_departure).getTime() <= Date.now()
+  )
+  assert.ok(departedTrip)
+
+  const lateOperatorAssignment = await requestRaw(`/admin/trips/${departedTrip.trip_id}/operator`, {
+    method: 'PATCH',
+    token: adminToken,
+    body: { operatorUserId: operators[0].user_id },
+  })
+  assert.equal(lateOperatorAssignment.status, 409)
+  assert.match(lateOperatorAssignment.payload.error, /departure time has passed/i)
+
+  const lateTrainsetAssignment = await requestRaw(`/admin/trips/${departedTrip.trip_id}/trainset`, {
+    method: 'PATCH',
+    token: adminToken,
+    body: { trainsetId: trainsets[0].trainset_id },
+  })
+  assert.equal(lateTrainsetAssignment.status, 409)
+  assert.match(lateTrainsetAssignment.payload.error, /departure time has passed/i)
+
+  const operatorTrip = scheduledTrips.find(item => !item.operator_user_id)
+  assert.ok(operatorTrip)
+
+  const assigned = await request(`/admin/trips/${operatorTrip.trip_id}/operator`, {
     method: 'PATCH',
     token: adminToken,
     body: { operatorUserId: operators[0].user_id },
   })
   assert.equal(assigned.operatorUserId, operators[0].user_id)
+
+  const reassignment = await requestRaw(`/admin/trips/${operatorTrip.trip_id}/operator`, {
+    method: 'PATCH',
+    token: adminToken,
+    body: { operatorUserId: operators[0].user_id },
+  })
+  assert.equal(reassignment.status, 409)
 
   const trainsetTrip = scheduledTrips.find(item =>
     item.trip_status === 'SCHEDULED' && item.source_station === 'Chattogram'

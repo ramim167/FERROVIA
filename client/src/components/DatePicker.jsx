@@ -9,12 +9,14 @@ const toISO = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())
 const parseISO = s => { const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d) }
 const sameDay = (a,b) => a && b && a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate()
 const stripTime = d => new Date(d.getFullYear(), d.getMonth(), d.getDate())
+const addDays = (date, days) => new Date(date.getFullYear(), date.getMonth(), date.getDate() + days)
 
-export default function DatePicker({ value, onChange, min, label='Date', ariaLabel }){
+export default function DatePicker({ value, onChange, min, max, label='Date', ariaLabel }){
  const [open,setOpen] = useState(false)
  const selected = value ? parseISO(value) : null
- const minDate = min ? parseISO(min) : null
- const today = new Date()
+ const today = stripTime(new Date())
+ const minDate = min ? stripTime(parseISO(min)) : today
+ const maxDate = max ? stripTime(parseISO(max)) : addDays(today, 7)
  const [view,setView] = useState(selected || today)
  const wrapRef = useRef(null)
 
@@ -42,7 +44,8 @@ export default function DatePicker({ value, onChange, min, label='Date', ariaLab
 
  const changeMonth = delta => setView(v => new Date(v.getFullYear(), v.getMonth()+delta, 1))
  const pick = date => {
-  if(minDate && stripTime(date) < stripTime(minDate)) return
+  const day = stripTime(date)
+  if(day < minDate || day > maxDate) return
   onChange(toISO(date))
   setOpen(false)
  }
@@ -64,7 +67,8 @@ export default function DatePicker({ value, onChange, min, label='Date', ariaLab
    <div className="dp-weekdays">{WEEKDAYS.map(w=><span key={w}>{w}</span>)}</div>
    <div className="dp-grid">
     {cells.map((c,i)=>{
-     const disabled = minDate ? stripTime(c.date) < stripTime(minDate) : false
+     const day = stripTime(c.date)
+     const disabled = day < minDate || day > maxDate
      const isToday = sameDay(c.date, today)
      const isSelected = selected && sameDay(c.date, selected)
      return <button type="button" key={i} disabled={disabled}

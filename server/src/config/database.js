@@ -33,7 +33,8 @@ function normalizeClient(client) {
 export async function initializeDatabase() {
   if (pool) return pool
 
-  databaseMode = String(process.env.DATABASE_MODE || 'postgres').toLowerCase()
+  const defaultMode = process.env.NODE_ENV === 'production' ? 'postgres' : 'memory'
+  databaseMode = String(process.env.DATABASE_MODE || defaultMode).toLowerCase()
 
   if (databaseMode === 'memory') {
     pool = createMemoryPool()
@@ -74,7 +75,8 @@ export async function getConnection() {
 }
 
 export function getDatabaseMode() {
-  return databaseMode || String(process.env.DATABASE_MODE || 'postgres').toLowerCase()
+  const defaultMode = process.env.NODE_ENV === 'production' ? 'postgres' : 'memory'
+  return databaseMode || String(process.env.DATABASE_MODE || defaultMode).toLowerCase()
 }
 
 export async function closeDatabase() {

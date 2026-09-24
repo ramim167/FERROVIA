@@ -4982,7 +4982,7 @@ button:disabled {
   background: #d75c64;
 }
 .assignment-workspace {
-  grid-template-columns: minmax(340px, 0.82fr) minmax(520px, 1.5fr);
+  grid-template-columns: minmax(520px, 1.2fr) minmax(420px, 1fr);
   align-items: stretch;
 }
 .issued-trip-card,
@@ -5000,6 +5000,58 @@ button:disabled {
 }
 .issued-trip-card .compact {
   padding: 9px 12px;
+}
+.assignment-date-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
+}
+.assignment-date-actions .datepicker {
+  width: 174px;
+}
+.assignment-date-actions .datepicker-trigger {
+  height: 38px;
+}
+.assignment-time-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 8px 0 10px;
+  border: 1px solid #d6e6e4;
+  border-radius: 10px;
+  background: #fbfdfc;
+  color: var(--muted);
+}
+.assignment-time-filter > span {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+.assignment-time-filter input {
+  width: 78px;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+}
+.assignment-time-filter > button {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  place-items: center;
+  border-radius: 50%;
+  background: #e5eeee;
+  color: #63787d;
+  font-size: 15px;
+  line-height: 1;
 }
 .issued-trip-list {
   display: grid;
@@ -5025,6 +5077,20 @@ button:disabled {
 .issued-trip-list > button.selected {
   border-color: var(--teal);
   background: #eefaf7;
+}
+.issued-trip-list > button.expired-trip,
+.admin-train-results button.expired-trip {
+  border-color: #d9e0e1;
+  background: #f1f4f4;
+  color: #8b9a9e;
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+.issued-trip-list > button.expired-trip:hover,
+.admin-train-results button.expired-trip:hover {
+  border-color: #d9e0e1;
+  background: #f1f4f4;
+  transform: none;
 }
 .issued-trip-list b,
 .issued-trip-list small {
@@ -5137,8 +5203,14 @@ button:disabled {
 .admin-trips .section-head {
   align-items: center;
 }
-.admin-trips .datepicker {
-  max-width: 220px;
+.assignment-table-filters {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.admin-trips .assignment-table-filters .datepicker {
+  width: 200px;
 }
 .admin-table-wrap {
   overflow: auto;
@@ -5165,6 +5237,22 @@ button:disabled {
 }
 .admin-table-wrap small {
   color: var(--muted);
+}
+.admin-table-wrap tr.expired-trip {
+  background: #f2f5f5;
+  color: #8b9a9e;
+}
+.admin-table-wrap tr.expired-trip td:not(:last-child) {
+  text-decoration: line-through;
+  text-decoration-color: #9ca9ac;
+  text-decoration-thickness: 1px;
+}
+.admin-table-wrap tr.expired-trip small {
+  color: #9ca9ac;
+}
+.admin-table-wrap tr.expired-trip select {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 .inline-assign {
   display: flex;
@@ -5250,6 +5338,27 @@ button:disabled {
   }
 }
 @media (max-width: 760px) {
+  .issued-trip-card .section-head {
+    align-items: stretch;
+    gap: 12px;
+    flex-direction: column;
+  }
+  .assignment-date-actions,
+  .assignment-date-actions .datepicker {
+    width: 100%;
+  }
+  .assignment-date-actions .datepicker {
+    min-width: 0;
+  }
+  .assignment-table-filters {
+    align-items: stretch;
+    width: 100%;
+    flex-direction: column;
+  }
+  .admin-trips .assignment-table-filters .datepicker,
+  .assignment-table-filters .assignment-time-filter {
+    width: 100%;
+  }
   .feature-strip {
     grid-template-columns: 1fr;
   }

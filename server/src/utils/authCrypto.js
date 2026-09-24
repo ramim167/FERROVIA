@@ -20,7 +20,11 @@ export async function verifyPassword(password, stored) {
 }
 
 function tokenSecret() {
-  const secret = process.env.JWT_SECRET
+  const secret = process.env.JWT_SECRET || (
+    process.env.NODE_ENV === 'production'
+      ? ''
+      : 'ferrovia-local-development-secret'
+  )
   if (!secret) throw new Error('JWT_SECRET is required')
   return secret
 }
