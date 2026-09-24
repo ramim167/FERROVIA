@@ -2,6 +2,9 @@
 -- =======================================================
 -- FERROVIA AUTO GENERATED SQL FOR 301 TRAINS
 -- =======================================================
+-- WARNING: this legacy generated file used placeholder 10 km stop increments.
+-- Do not treat its distances as verified. Regenerate only after the source
+-- workbook contains Distance_From_Source_KM; generate_sql.js now enforces it.
 
 CREATE OR REPLACE FUNCTION get_or_create_station(p_name VARCHAR) RETURNS INT AS $$
 DECLARE
@@ -3814,13 +3817,13 @@ BEGIN
   VALUES (v_train_id, 'W-771', 'UP', get_or_create_station('Dhaka'), get_or_create_station('Rangpur'), 1) RETURNING ROUTE_ID INTO v_route_id;
   INSERT INTO ROUTE_STOPS (ROUTE_ID, STATION_ID, STOP_SEQUENCE, ARRIVAL_OFFSET_MIN, DEPARTURE_OFFSET_MIN, DISTANCE_FROM_SOURCE_KM) VALUES 
   (v_route_id, get_or_create_station('Dhaka'), 1, NULL, 0, 0),
-  (v_route_id, get_or_create_station('Rangpur'), 2, 590, NULL, 10);
+  (v_route_id, get_or_create_station('Rangpur'), 2, 590, NULL, 300);
 
   INSERT INTO ROUTES (TRAIN_ID, ROUTE_CODE, DIRECTION, SOURCE_STATION_ID, DESTINATION_STATION_ID, IS_ACTIVE)
   VALUES (v_train_id, 'W-772', 'DOWN', get_or_create_station('Rangpur'), get_or_create_station('Dhaka'), 1) RETURNING ROUTE_ID INTO v_route_id;
   INSERT INTO ROUTE_STOPS (ROUTE_ID, STATION_ID, STOP_SEQUENCE, ARRIVAL_OFFSET_MIN, DEPARTURE_OFFSET_MIN, DISTANCE_FROM_SOURCE_KM) VALUES 
   (v_route_id, get_or_create_station('Rangpur'), 1, NULL, 0, 0),
-  (v_route_id, get_or_create_station('Dhaka'), 2, 600, NULL, 10);
+  (v_route_id, get_or_create_station('Dhaka'), 2, 600, NULL, 300);
 
 END $$;
 
@@ -5014,4 +5017,3 @@ BEGIN
   (v_route_id, get_or_create_station('Ishwardi'), 2, 60, NULL, 10);
 
 END $$;
-

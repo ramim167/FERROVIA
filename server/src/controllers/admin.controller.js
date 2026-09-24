@@ -1,4 +1,5 @@
 import * as adminService from '../services/admin.service.js'
+import { forbidden } from '../utils/httpError.js'
 
 export async function routes(_req, res) {
   res.json({ success: true, data: await adminService.routes() })
@@ -61,13 +62,20 @@ export async function trainsets(req, res) {
   res.json({ success: true, data: await adminService.trainsets(trainId) })
 }
 
-export async function createTrip(req, res) {
-  const data = await adminService.newTrip(req.body)
-  res.status(201).json({ success: true, data })
+export async function rejectTripIssue(_req, _res) {
+  throw forbidden('Trips are issued automatically from route running days. Assign an operator to the generated trip instead.')
 }
 
 export async function assignOperator(req, res) {
   const data = await adminService.setOperator(Number(req.params.tripId), Number(req.body.operatorUserId))
+  res.json({ success: true, data })
+}
+
+export async function assignTrainset(req, res) {
+  const data = await adminService.setTrainset(
+    Number(req.params.tripId),
+    Number(req.body.trainsetId)
+  )
   res.json({ success: true, data })
 }
 

@@ -676,7 +676,7 @@ function Home({ search, setSearch, doSearch, navigate, stations }) {
                     </h1>
                     <p>
                         Search, reserve and track your railway journey through a secure
-                        PostgreSQL-backed travel workspace.
+                        database-backed travel workspace.
                     </p>
                     <div className="hero-actions">
                         <button className="primary" onClick={doSearch}>
@@ -720,7 +720,7 @@ function Home({ search, setSearch, doSearch, navigate, stations }) {
                     <Icon name="train" size={24} />
                     <div>
                         <Counter value="1" />
-                        <span>service demo with rotating physical trainsets</span>
+                        <span>service with rotating physical trainsets</span>
                     </div>
                 </article>
                 <article>
@@ -820,7 +820,7 @@ function SearchPage({
     return (
         <main className="page">
             <div className="page-title">
-                <span className="eyebrow">LIVE POSTGRESQL SCHEDULE SEARCH</span>
+                <span className="eyebrow">LIVE RAILWAY SCHEDULE SEARCH</span>
                 <h1>Choose the best journey</h1>
                 <p>
                     {search.from} to {search.to} • {search.date}
@@ -877,7 +877,7 @@ function SearchPage({
                     <div className="result-top">
                         <div>
                             <b>{filtered.length} trains available</b>
-                            <small>Results are read from PostgreSQL TRIPS + ROUTES</small>
+                            <small>Live results · fares rounded up to the next ৳10</small>
                         </div>
                         <select value={sort} onChange={(e) => setSort(e.target.value)}>
                             <option value="earliest">Earliest departure</option>
@@ -1263,10 +1263,10 @@ function PaymentPage({
         <main className="page">
             <Steps step={3} />
             <div className="page-title">
-                <span className="eyebrow">SECURE DEMO CHECKOUT</span>
+                <span className="eyebrow">SECURE CHECKOUT</span>
                 <h1>Choose payment method</h1>
                 <p>
-                    Your PostgreSQL seat reservation is HELD for {booking.holdMinutes || 10}{" "}
+                    Your seat reservation is HELD for {booking.holdMinutes || 10}{" "}
                     minutes{expiry ? ` (until ${fmtTime(expiry)})` : ""}.
                 </p>
             </div>
@@ -1303,7 +1303,7 @@ function PaymentPage({
                                 <input
                                     name="transactionId"
                                     required
-                                    placeholder="Demo transaction ID"
+                                    placeholder="Transaction ID"
                                 />
                             </label>
                         </>
@@ -1341,8 +1341,8 @@ function PaymentPage({
                         </label>
                     )}
                     <div className="secure-note">
-                        <Icon name="shield" size={18} /> Academic demo: backend records a
-                        successful payment; no real money is charged.
+                        <Icon name="shield" size={18} /> Payment confirmation is recorded
+                        securely for this booking.
                     </div>
                     <div className="fare-lines">
                         <span>
@@ -1411,7 +1411,7 @@ function Confirmation({ booking, navigate }) {
                 <h1>Your ticket is ready!</h1>
                 <p>
                     Payment, booking, reservations and ticket rows have been committed in
-                    PostgreSQL.
+                    the booking database.
                 </p>
                 <div className="ticket">
                     <div className="ticket-main">
@@ -1485,7 +1485,7 @@ function Dashboard({
         return (
             <AccessCard
                 title="Sign in for your travel dashboard"
-                copy="Bookings, tickets, cancellations and notifications are stored in PostgreSQL under your account."
+                copy="Bookings, tickets, cancellations and notifications are stored securely under your account."
                 action="Sign in"
                 onAction={onAuth}
             />
@@ -1686,7 +1686,7 @@ function Tickets({ user, bookings, navigate, cancel, onAuth, handleError }) {
         return (
             <AccessCard
                 title="Sign in to view My Tickets"
-                copy="Your ticket wallet is loaded from PostgreSQL, not browser localStorage."
+                copy="Your ticket wallet is loaded from the server, not browser local storage."
                 action="Sign in"
                 onAction={onAuth}
             />
@@ -2019,7 +2019,7 @@ function TrackTrain({ handleError }) {
                                             ? "Triggered"
                                             : "Not triggered"}
                                     </b>
-                                    <span>Threshold: 60 minutes in demo data</span>
+                                    <span>Threshold: 60 minutes in configured data</span>
                                 </article>
                             </div>
                         </section>
@@ -2089,7 +2089,7 @@ function NotificationsPage({
         return (
             <AccessCard
                 title="Sign in to view notifications"
-                copy="Booking confirmation, cancellation and refund messages are stored in PostgreSQL."
+                copy="Booking confirmation, cancellation and refund messages are saved to your account."
                 action="Sign in"
                 onAction={onAuth}
             />
@@ -2253,7 +2253,7 @@ function OperatorPanel({ user, handleError, setToast }) {
                 <span className="eyebrow">OPERATOR CONTROL</span>
                 <h1>Station event console</h1>
                 <p>
-                    Buttons save PostgreSQL server timestamps; schedule values are never
+                    Buttons save server timestamps; schedule values are never
                     shifted by delay.
                 </p>
             </div>
@@ -2414,312 +2414,12 @@ function OperatorPanel({ user, handleError, setToast }) {
 }
 
 function AdminPanel({ user, handleError, setToast }) {
-    const [routes, setRoutes] = useState([]),
-        [trainsets, setTrainsets] = useState([]),
-        [operators, setOperators] = useState([]),
-        [trips, setTrips] = useState([]),
-        [date, setDate] = useState(localToday()),
-        [form, setForm] = useState({
-            routeId: "",
-            scheduledDeparture: "",
-            operatorUserId: "",
-            trainsetId: "",
-        }),
-        [loading, setLoading] = useState(false);
-    const allowed = user?.role === "ADMIN";
-    const reload = useCallback(async () => {
-        if (!allowed) return;
-        setLoading(true);
-        try {
-            const [r, ts, op, tr] = await Promise.all([
-                api("/admin/routes"),
-                api("/admin/trainsets"),
-                api("/admin/operators"),
-                api(`/admin/trips?date=${date}`),
-            ]);
-            setRoutes(r);
-            setTrainsets(ts);
-            setOperators(op);
-            setTrips(tr);
-            setForm((f) => ({
-                ...f,
-                routeId: f.routeId || String(r[0]?.route_id || ""),
-                operatorUserId: f.operatorUserId || String(op[0]?.user_id || ""),
-            }));
-        } catch (err) {
-            handleError(err);
-        } finally {
-            setLoading(false);
-        }
-    }, [allowed, date, handleError]);
-    useEffect(() => {
-        reload();
-    }, [reload]);
-    if (!allowed)
-        return (
-            <AccessCard
-                title="Admin access required"
-                copy="Trip creation, trainset status and operator assignment are restricted to ADMIN accounts."
-            />
-        );
-    const route = routes.find((r) => Number(r.route_id) === Number(form.routeId));
-    const eligible = trainsets.filter(
-        (t) =>
-            Number(t.train_id) === Number(route?.train_id) &&
-            t.status === "SPARE" &&
-            Number(t.current_station_id) === Number(route?.source_station_id)
-    );
-    const createTrip = async (e) => {
-        e.preventDefault();
-        if (!form.scheduledDeparture) {
-            setToast("Choose a departure date and time");
-            return;
-        }
-        setLoading(true);
-        try {
-            const data = await api("/admin/trips", {
-                method: "POST",
-                body: {
-                    routeId: Number(form.routeId),
-                    scheduledDeparture: new Date(form.scheduledDeparture).toISOString(),
-                    operatorUserId: form.operatorUserId
-                        ? Number(form.operatorUserId)
-                        : null,
-                    trainsetId: form.trainsetId ? Number(form.trainsetId) : null,
-                },
-            });
-            setToast(`Trip #${data.trip_id} created with stops and seat inventory`);
-            setForm((f) => ({
-                ...f,
-                scheduledDeparture: "",
-                trainsetId: "",
-            }));
-            await reload();
-        } catch (err) {
-            handleError(err);
-        } finally {
-            setLoading(false);
-        }
-    };
-    const assign = async (tripId, operatorUserId) => {
-        try {
-            await api(`/admin/trips/${tripId}/operator`, {
-                method: "PATCH",
-                body: {
-                    operatorUserId: Number(operatorUserId),
-                },
-            });
-            setToast(`Operator assigned to trip #${tripId}`);
-            reload();
-        } catch (err) {
-            handleError(err);
-        }
-    };
     return (
-        <main className="page">
-            <div className="page-title">
-                <span className="eyebrow">ADMIN OPERATIONS</span>
-                <h1>Train services, trips & operators</h1>
-                <p>
-                    Create permanent railway services, configure routes and fleet, then
-                    create dated operational trips.
-                </p>
-            </div>
-            <AdminTrainServiceForm
-                user={user}
-                handleError={handleError}
-                setToast={setToast}
-                onCreated={reload}
-            />
-            <section className="admin-grid">
-                <form className="card admin-create" onSubmit={createTrip}>
-                    <h2>Create trip</h2>
-                    <label>
-                        Route
-                        <select
-                            value={form.routeId}
-                            onChange={(e) =>
-                                setForm({ ...form, routeId: e.target.value, trainsetId: "" })
-                            }
-                        >
-                            {routes.map((r) => (
-                                <option key={r.route_id} value={r.route_id}>
-                                    {r.train_name} • {r.direction} • {r.source_station} →{" "}
-                                    {r.destination_station}
-                                </option>
-                            ))}
-                        </select>
-                    </label>
-                    <label>
-                        Scheduled departure
-                        <input
-                            type="datetime-local"
-                            value={form.scheduledDeparture}
-                            onChange={(e) =>
-                                setForm({ ...form, scheduledDeparture: e.target.value })
-                            }
-                        />
-                    </label>
-                    <label>
-                        Operator
-                        <select
-                            value={form.operatorUserId}
-                            onChange={(e) =>
-                                setForm({ ...form, operatorUserId: e.target.value })
-                            }
-                        >
-                            <option value="">Unassigned</option>
-                            {operators.map((o) => (
-                                <option value={o.user_id} key={o.user_id}>
-                                    {o.full_name} • Operator ID #{o.user_id}
-                                </option>
-                            ))}
-                        </select>
-                    </label>
-                    <label>
-                        Initial physical trainset
-                        <select
-                            value={form.trainsetId}
-                            onChange={(e) => setForm({ ...form, trainsetId: e.target.value })}
-                        >
-                            <option value="">Create without initial assignment</option>
-                            {eligible.map((t) => (
-                                <option value={t.trainset_id} key={t.trainset_id}>
-                                    {t.trainset_code} • SPARE at {t.current_station}
-                                </option>
-                            ))}
-                        </select>
-                    </label>
-                    <button className="primary" disabled={loading}>
-                        Create trip + materialize stops/seats
-                    </button>
-                    <small>
-                        Only SPARE trainsets standing at the selected route source terminal
-                        are eligible.
-                    </small>
-                </form>
-                <section className="card fleet-card">
-                    <div className="section-head">
-                        <div>
-                            <span className="eyebrow">PHYSICAL FLEET</span>
-                            <h2>Trainset rotation</h2>
-                        </div>
-                        <button className="secondary" onClick={reload}>
-                            Refresh
-                        </button>
-                    </div>
-                    <div className="fleet-list">
-                        {trainsets.map((t) => (
-                            <article key={t.trainset_id}>
-                                <span
-                                    className={`fleet-dot ${String(t.status).toLowerCase()}`}
-                                ></span>
-                                <div>
-                                    <b>{t.trainset_code}</b>
-                                    <small>{t.train_name}</small>
-                                </div>
-                                <strong>{t.status}</strong>
-                                <span>{t.current_station || "Running / no terminal"}</span>
-                            </article>
-                        ))}
-                    </div>
-                </section>
-            </section>
-            <section className="card admin-trips">
-                <div className="section-head">
-                    <div>
-                        <span className="eyebrow">DATED OPERATIONS</span>
-                        <h2>Trips & operator assignment</h2>
-                    </div>
-                    <DatePicker value={date} onChange={setDate} />
-                </div>
-                <div className="admin-table-wrap">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Trip</th>
-                                <th>Route</th>
-                                <th>Time</th>
-                                <th>Status</th>
-                                <th>Train status</th>
-                                <th>Operator</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {trips.map((t) => (
-                                <AdminTripRow
-                                    key={t.trip_id}
-                                    trip={t}
-                                    operators={operators}
-                                    assign={assign}
-                                />
-                            ))}
-                        </tbody>
-                    </table>
-                    {!trips.length && (
-                        <p className="empty-inline">No trips for {date}.</p>
-                    )}
-                </div>
-            </section>
-        </main>
-    );
-}
-
-function AdminTripRow({ trip, operators, assign }) {
-    const [operator, setOperator] = useState(String(trip.operator_user_id || ""));
-    return (
-        <tr>
-            <td>
-                <b>#{trip.trip_id}</b>
-                <br />
-                <small>{trip.train_name}</small>
-            </td>
-            <td>
-                {trip.direction}
-                <br />
-                <small>
-                    {trip.source_station} → {trip.destination_station}
-                </small>
-            </td>
-            <td>
-                {fmtTime(trip.scheduled_departure)}
-                <br />
-                <small>{fmtDate(trip.scheduled_departure)}</small>
-            </td>
-            <td>
-                {trip.trip_status}
-                <br />
-                <small>{delayText(trip.current_delay_minutes)}</small>
-            </td>
-            <td>
-                <small>
-                    Last: {trip.last_left_station || "—"}
-                    <br />
-                    Next: {trip.next_station || "—"}
-                </small>
-            </td>
-            <td>
-                <div className="inline-assign">
-                    <select
-                        value={operator}
-                        onChange={(e) => setOperator(e.target.value)}
-                    >
-                        <option value="">Unassigned</option>
-                        {operators.map((o) => (
-                            <option value={o.user_id} key={o.user_id}>
-                                {o.full_name} • ID #{o.user_id}
-                            </option>
-                        ))}
-                    </select>
-                    <button
-                        disabled={!operator}
-                        onClick={() => assign(trip.trip_id, operator)}
-                    >
-                        Assign
-                    </button>
-                </div>
-            </td>
-        </tr>
+        <AdminAssignTrip
+            user={user}
+            handleError={handleError}
+            setToast={setToast}
+        />
     );
 }
 
@@ -2761,8 +2461,8 @@ function Support({ setToast }) {
                                         : q.includes("spare")
                                             ? "At 60 minutes or more delay, the destination-terminal SPARE trainset is reserved for the next opposite-direction trip. The delayed train completes its current journey and becomes the new spare."
                                             : q.includes("refund")
-                                                ? "Cancelling a confirmed demo booking creates REFUNDS rows with REQUESTED status for the issued tickets."
-                                                : "Search a route/date, select a real trip and class, choose segment-available seats, enter passenger details and complete demo payment."}
+                                                ? "Cancelling a confirmed booking creates refund records for the issued tickets."
+                                                : "Search a route/date, select a real trip and class, choose segment-available seats, enter passenger details and complete payment."}
                                 </p>
                             </details>
                         ))}
@@ -2772,7 +2472,7 @@ function Support({ setToast }) {
                     onSubmit={(e) => {
                         e.preventDefault();
                         e.currentTarget.reset();
-                        setToast("Your support message demo was submitted");
+                        setToast("Your support message was submitted");
                     }}
                 >
                     <h2>Contact support</h2>
@@ -2862,7 +2562,7 @@ function AuthModal({ mode, setMode, close, onSuccess }) {
                     <h2>Welcome aboard!</h2>
                     <p>
                         Passenger, Operator and Admin roles authenticate through the
-                        Express/PostgreSQL backend.
+                        Express/SQL backend.
                     </p>
                     <img src={heroTrain} alt="Train" />
                 </div>
@@ -2927,10 +2627,10 @@ function AuthModal({ mode, setMode, close, onSuccess }) {
                                 ? "Sign in"
                                 : "Create account"}
                     </button>
-                    <small className="demo-note">
-                        Demo operator: operator@ferrovia.local / Operator123!
+                    <small className="account-note">
+                        Operator: operator@ferrovia.local / Operator123!
                         <br />
-                        Demo admin: admin@ferrovia.local / Admin123!
+                        Admin: admin@ferrovia.local / Admin123!
                     </small>
                 </form>
             </div>

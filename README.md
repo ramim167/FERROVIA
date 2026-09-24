@@ -1,17 +1,17 @@
 # FERROVIA
 
-FERROVIA is a complete full-stack railway e-ticketing and operational tracking system. It combines passenger booking, segment-aware seat reservation, demo payment, ticket management, operator station updates, live train status, spare trainset rotation, notifications, and an admin operations workspace in one project.
+FERROVIA is a complete full-stack railway e-ticketing and operational tracking system. It combines passenger booking, segment-aware seat reservation, payment confirmation, ticket management, operator station updates, live train status, spare trainset rotation, notifications, and an admin operations workspace in one project.
 
 ## Project Status
 
-The project is complete and ready for local demonstration. The frontend, backend API, PostgreSQL schema, embedded demo database, passenger flow, operator console, admin controls, live tracking model, booking lifecycle, and trainset rotation logic are implemented and covered by integration tests.
+The frontend, backend API, PostgreSQL schema, embedded local database, passenger flow, operator console, admin controls, live tracking model, booking lifecycle, and trainset rotation logic are implemented and covered by integration tests.
 
 ## Technology Stack
 
 - Frontend: React 19 + Vite
 - Backend: Node.js + Express
 - Database: PostgreSQL
-- Local demo database: embedded PostgreSQL-compatible in-memory mode
+- Local database: embedded PostgreSQL-compatible in-memory mode
 - Authentication: custom bearer token flow
 - Styling: custom responsive CSS
 - Runtime ports:
@@ -28,7 +28,7 @@ The project is complete and ready for local demonstration. The frontend, backend
 - Class availability and backend fare calculation
 - Segment-aware seat availability
 - 10-minute held seat reservations
-- Demo payment confirmation
+- Payment confirmation
 - Ticket generation after payment
 - Passenger dashboard with journey summary
 - My Tickets page with booking details and print support
@@ -39,10 +39,11 @@ The project is complete and ready for local demonstration. The frontend, backend
 - Live last-station-left and delay display
 - Fixed public timetable with actual operational timestamps
 - Automatic 60-minute spare trainset reservation and rotation
-- Admin route, trainset, trip, operator, train service, and schedule workspace
+- Admin route, trainset, operator, train service, and schedule workspace
 - Admin train service creation with routes, stops, fares, coaches, seats, running days, and trainsets
 - Admin train and route editing
-- Admin trip creation and operator assignment
+- Automatic trip issuing for the next seven operating days
+- Admin operator assignment for generated trips
 - Support/FAQ screen for booking, tracking, spare rotation, and refunds
 
 ## Core Railway Model
@@ -80,7 +81,7 @@ The public timetable remains fixed. Delays are shown as operational status and d
 
 ## Spare Trainset Rotation
 
-Each train service has a delay threshold stored in `TRAINS.SPARE_TRIGGER_DELAY_MIN`. The demo service uses a 60-minute threshold.
+Each train service has a delay threshold stored in `TRAINS.SPARE_TRIGGER_DELAY_MIN`. The default service uses a 60-minute threshold.
 
 When a delayed departure reaches the threshold:
 
@@ -90,7 +91,7 @@ When a delayed departure reaches the threshold:
 4. The reserved spare trainset becomes active when the next opposite-direction trip departs.
 5. If the threshold is never reached, the normal trainset is reserved for the next opposite trip.
 
-The recommended demo fleet for a two-terminal service is one operating trainset and one spare trainset at each terminal.
+The recommended fleet for a two-terminal service is one operating trainset and one spare trainset at each terminal.
 
 ## Database Setup
 
@@ -98,25 +99,25 @@ Run these files on a fresh PostgreSQL database:
 
 ```sql
 database/schema.sql
-database/seed-demo.sql
+database/seed-local.sql
 ```
 
 Additional data and maintenance scripts are also included:
 
-- `database/seed_trains.sql`: generated Bangladesh Railway train and route data
+- `database/seed_trains.sql`: generated Bangladesh Railway train and route data. Its legacy stop distances are placeholders except for the supplied 300 km Dhaka-Rangpur correction; regenerate it only from a workbook containing verified `Distance_From_Source_KM` values.
 - `database/seed_running_days.sql`: running-day schedule data
 - `database/trip.sql`: fare, class, seat inventory, and trip helper data
 - `database/sql_history/`: database change history
 
-The demo seed creates:
+The seed data creates:
 
 - Suborno Express UP and DOWN route templates
 - Dhaka, Chattogram, Cumilla, Feni, and other stations
 - class types, fare rules, coaches, seats, trips, and trip seats
 - three physical trainsets for spare rotation
-- operator and admin demo accounts
+- operator and admin accounts
 
-## Demo Accounts
+## Seed Accounts
 
 ```text
 Operator: operator@ferrovia.local / Operator123!
@@ -127,7 +128,7 @@ Passengers can create accounts from the website.
 
 ## Environment
 
-For the zero-setup local demo, create `server/.env` with:
+For a zero-setup local run, create `server/.env` with:
 
 ```env
 PORT=5000
@@ -138,7 +139,7 @@ JWT_SECRET=replace_with_a_long_random_secret
 AUTH_TOKEN_TTL_SECONDS=604800
 ```
 
-The in-memory mode loads a PostgreSQL-compatible schema and complete demo dataset at server startup. Data resets when the backend restarts.
+The in-memory mode loads a PostgreSQL-compatible schema and complete local dataset at server startup. Data resets when the backend restarts.
 
 For persistent PostgreSQL, use:
 
@@ -180,6 +181,8 @@ This starts both processes:
 - Express API on `http://localhost:5000`
 - Vite frontend on `http://localhost:5173`
 
+`npm run dev` explicitly uses the configured PostgreSQL/Supabase database. For the isolated in-memory database instead, run `npm run dev:memory`.
+
 Health check:
 
 ```text
@@ -210,7 +213,7 @@ npm run dev
 4. Enter passenger details.
 5. Sign in or register.
 6. Create a 10-minute seat hold.
-7. Complete demo payment.
+7. Complete payment.
 8. Receive confirmed booking, tickets, and notification.
 9. View, print, or cancel tickets from My Tickets.
 
@@ -228,9 +231,9 @@ npm run dev
 2. View fleet and trainset status.
 3. Create complete train services with routes, stops, running days, fares, coaches, seats, and trainsets.
 4. Edit train and route information.
-5. Create dated trips from route templates.
-6. Assign operators to trips.
-7. Monitor trips, train status, delay, and fleet position.
+5. Review automatically issued trips for the next seven operating days.
+6. Assign operators to trips before departure.
+7. Monitor trip status, delay, cancellations, refunds, and fleet position.
 
 ## API Overview
 
@@ -290,7 +293,6 @@ GET   /api/admin/routes
 PATCH /api/admin/routes/:routeId
 GET   /api/admin/operators
 GET   /api/admin/trips?date=YYYY-MM-DD
-POST  /api/admin/trips
 PATCH /api/admin/trips/:tripId/operator
 GET   /api/admin/trainsets?trainId=...
 GET   /api/admin/train-services

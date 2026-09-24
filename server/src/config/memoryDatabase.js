@@ -66,6 +66,18 @@ function memorySchema() {
 }
 
 function memorySeed() {
+  const dateParts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Dhaka',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    })
+      .formatToParts(new Date())
+      .filter(part => part.type !== 'literal')
+      .map(part => [part.type, part.value])
+  )
+  const journeyDate = `${dateParts.year}-${dateParts.month}-${dateParts.day}`
   const days = ['SAT', 'SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI']
   const runningDays = [
     ...days.map(day => `(1, '${day}', 420)`),
@@ -74,7 +86,9 @@ function memorySeed() {
   const seats = Array.from({ length: 36 }, (_, index) => {
     const coachId = Math.floor(index / 12) + 1
     const number = (index % 12) + 1
-    const type = number % 4 === 0 || number % 4 === 1 ? 'WINDOW' : 'AISLE'
+    const type = coachId === 3
+      ? 'BERTH'
+      : (number % 4 === 0 || number % 4 === 1 ? 'WINDOW' : 'AISLE')
     return `(${coachId}, '${number}', '${type}')`
   }).join(', ')
   const tripSeats = [1, 2]
@@ -83,8 +97,8 @@ function memorySeed() {
 
   return `
 INSERT INTO USERS (FULL_NAME, EMAIL, PHONE, PASSWORD_HASH, ROLE) VALUES
-  ('Demo Operator', 'operator@ferrovia.local', '01700000001', 'scrypt$985e8d1c92c46892f79861543c64c3fa$7c28cd4a83a5c1885214897cb8b52e5af96ef1c4f2ea5d9e1fdb37516acffb3c3326eae57f7f56a47b1f07b36ce578cbfe41430d36b7e8581558edab69e2339e', 'OPERATOR'),
-  ('Demo Admin', 'admin@ferrovia.local', '01700000002', 'scrypt$490444c8d6acc83010e68d7a15b7fd70$21f5ed937bf7db53181dfc51edb39fecbdce09d572396bc7731af0b4228baa2344bc8969290358e359a3580fb5fc3b9beb978928b3674867a2d99ff3ba9a1e17', 'ADMIN');
+  ('Seed Operator', 'operator@ferrovia.local', '01700000001', 'scrypt$985e8d1c92c46892f79861543c64c3fa$7c28cd4a83a5c1885214897cb8b52e5af96ef1c4f2ea5d9e1fdb37516acffb3c3326eae57f7f56a47b1f07b36ce578cbfe41430d36b7e8581558edab69e2339e', 'OPERATOR'),
+  ('Seed Admin', 'admin@ferrovia.local', '01700000002', 'scrypt$490444c8d6acc83010e68d7a15b7fd70$21f5ed937bf7db53181dfc51edb39fecbdce09d572396bc7731af0b4228baa2344bc8969290358e359a3580fb5fc3b9beb978928b3674867a2d99ff3ba9a1e17', 'ADMIN');
 
 INSERT INTO STATIONS (STATION_NAME, CITY, STATION_CODE) VALUES
   ('Dhaka', 'Dhaka', 'DHA'), ('Cumilla', 'Cumilla', 'CML'),
@@ -120,7 +134,7 @@ INSERT INTO TRAINSETS (TRAIN_ID, TRAINSET_CODE, STATUS, CURRENT_STATION_ID) VALU
   (1, 'SUB-03', 'SPARE', 4);
 
 INSERT INTO CLASS_TYPES (CLASS_NAME, CLASS_CODE) VALUES
-  ('SHOVAN', 'S_CHAIR'), ('SNIGDHA', 'SN'), ('AC SEAT', 'AC_S');
+  ('SHOVAN', 'S_CHAIR'), ('SNIGDHA', 'SN'), ('AC BERTH', 'AC_B');
 
 INSERT INTO COACHES (TRAIN_ID, CLASS_ID, COACH_CODE, COACH_ORDER) VALUES
   (1, 1, 'A', 1), (1, 2, 'B', 2), (1, 3, 'C', 3);
@@ -128,13 +142,13 @@ INSERT INTO COACHES (TRAIN_ID, CLASS_ID, COACH_CODE, COACH_ORDER) VALUES
 INSERT INTO SEATS (COACH_ID, SEAT_NUMBER, SEAT_TYPE) VALUES ${seats};
 
 INSERT INTO FARE_RULES (TRAIN_ID, CLASS_ID, RATE_PER_KM, BASE_FARE) VALUES
-  (1, 1, 1.50, 50), (1, 2, 2.50, 100), (1, 3, 3.50, 150);
+  (1, 1, 1.666667, 0), (1, 2, 3.666667, 0), (1, 3, 6.000000, 0);
 
 INSERT INTO TRIPS
   (TRAIN_ID, ROUTE_ID, JOURNEY_DATE, SCHEDULED_DEPARTURE, SCHEDULED_ARRIVAL, TRIP_STATUS, OPERATOR_USER_ID)
 VALUES
-  (1, 1, CURRENT_DATE, CURRENT_TIMESTAMP - INTERVAL '400 MINUTE', CURRENT_TIMESTAMP + INTERVAL '305 MINUTE', 'SCHEDULED', 1),
-  (1, 2, CURRENT_DATE, CURRENT_TIMESTAMP + INTERVAL '420 MINUTE', CURRENT_TIMESTAMP + INTERVAL '720 MINUTE', 'SCHEDULED', 1);
+  (1, 1, '${journeyDate}'::date, CURRENT_TIMESTAMP - INTERVAL '400 MINUTE', CURRENT_TIMESTAMP + INTERVAL '305 MINUTE', 'SCHEDULED', 1),
+  (1, 2, '${journeyDate}'::date, CURRENT_TIMESTAMP + INTERVAL '420 MINUTE', CURRENT_TIMESTAMP + INTERVAL '720 MINUTE', 'SCHEDULED', 1);
 
 INSERT INTO TRIP_STOPS
   (TRIP_ID, ROUTE_STOP_ID, STATION_ID, STOP_SEQUENCE, SCHEDULED_ARRIVAL, SCHEDULED_DEPARTURE)
@@ -150,7 +164,7 @@ VALUES
 
 INSERT INTO TRAINSET_ASSIGNMENTS
   (TRIP_ID, TRAINSET_ID, TRAIN_ID, ASSIGNMENT_TYPE, ASSIGNMENT_STATUS, REASON)
-VALUES (1, 1, 1, 'NORMAL', 'RESERVED', 'Initial demo assignment');
+VALUES (1, 1, 1, 'NORMAL', 'RESERVED', 'Initial seed assignment');
 
 INSERT INTO TRIP_SEATS (TRIP_ID, SEAT_ID, SEAT_STATUS) VALUES ${tripSeats};
 `

@@ -110,7 +110,7 @@ export default function Navbar({
                     }}
                   >
                     <Icon name="clock" size={17} />
-                    <span>Assign Trip Operator</span>
+                    <span>Trip &amp; Trainset Assignments</span>
                   </button>
                 </div>
               )}

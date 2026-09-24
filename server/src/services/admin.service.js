@@ -4,15 +4,11 @@ import {
 } from '../config/database.js'
 import {
   assignOperator,
-  createTrip,
   getOperator,
   getRoute,
-  getTrainsetForUpdate,
   listRoutes,
   listOperators,
   listAdminTrips,
-  materializeTripSeats,
-  materializeTripStops,
   listTrainServices,
   getTrainServiceDetails,
   listTrainFormStations,
@@ -30,13 +26,15 @@ import {
   updateRouteBasicInfo,
 } from '../repositories/admin.repository.js'
 import {
+  cancelAssignment,
   createAssignment,
+  getActiveAssignment,
+  getTrainsetForUpdate,
   listTrainsets,
-  setTrainsetStatus
+  releaseTrainset,
+  setTrainsetStatus,
 } from '../repositories/trainset.repository.js'
-import {
-  getLiveTrip
-} from '../repositories/trip.repository.js'
+import { getTrip } from '../repositories/trip.repository.js'
 import {
   badRequest,
   conflict,
@@ -520,54 +518,6 @@ export async function trainsets(trainId) {
   return withConnection(async (connection) => lowerKeys(await listTrainsets(connection, trainId || null)))
 }
 
-export async function newTrip(payload) {
-  const {
-    routeId,
-    scheduledDeparture,
-    operatorUserId,
-    trainsetId
-  } = payload
-  if (!routeId || !scheduledDeparture) throw badRequest('routeId and scheduledDeparture are required')
-  const departure = new Date(scheduledDeparture)
-  if (Number.isNaN(departure.getTime())) throw badRequest('scheduledDeparture must be a valid ISO date/time')
-
-  return withTransaction(async (connection) => {
-    const route = await getRoute(connection, Number(routeId))
-    if (!route) throw notFound('Route not found')
-    await validateOperator(connection, operatorUserId)
-
-    const tripId = await createTrip(connection, {
-      route,
-      scheduledDeparture: departure,
-      operatorUserId: operatorUserId ? Number(operatorUserId) : null,
-    })
-    await materializeTripStops(connection, tripId)
-    await materializeTripSeats(connection, tripId)
-
-    if (trainsetId) {
-      const trainset = await getTrainsetForUpdate(connection, Number(trainsetId))
-      if (!trainset) throw notFound('Trainset not found')
-      if (Number(trainset.TRAIN_ID) !== Number(route.TRAIN_ID)) throw badRequest('Trainset belongs to a different train service')
-      if (trainset.STATUS !== 'SPARE') throw conflict(`Trainset is currently ${trainset.STATUS}`)
-      if (Number(trainset.CURRENT_STATION_ID) !== Number(route.SOURCE_STATION_ID)) {
-        throw conflict('Trainset is not standing at this route source terminal')
-      }
-
-      await createAssignment(connection, {
-        tripId,
-        trainsetId: Number(trainsetId),
-        trainId: route.TRAIN_ID,
-        type: 'MANUAL',
-        status: 'RESERVED',
-        reason: 'Initial assignment by admin',
-      })
-      await setTrainsetStatus(connection, Number(trainsetId), 'RESERVED', route.SOURCE_STATION_ID)
-    }
-
-    return lowerKeys(await getLiveTrip(connection, tripId))
-  })
-}
-
 export async function setOperator(tripId, operatorUserId) {
   return withTransaction(async (connection) => {
     await validateOperator(connection, operatorUserId)
@@ -575,6 +525,76 @@ export async function setOperator(tripId, operatorUserId) {
     return {
       tripId: Number(tripId),
       operatorUserId: Number(operatorUserId)
+    }
+  })
+}
+
+export async function setTrainset(tripId, trainsetId) {
+  const normalizedTripId = Number(tripId)
+  const normalizedTrainsetId = Number(trainsetId)
+
+  if (!normalizedTripId || !normalizedTrainsetId) {
+    throw badRequest('Valid trip and trainset IDs are required')
+  }
+
+  return withTransaction(async connection => {
+    const trip = await getTrip(connection, normalizedTripId, true)
+    if (!trip) throw notFound('Trip not found')
+    if (!['SCHEDULED', 'BOARDING'].includes(String(trip.TRIP_STATUS).toUpperCase())) {
+      throw conflict('A trainset can only be assigned to a scheduled or boarding trip')
+    }
+
+    const trainset = await getTrainsetForUpdate(connection, normalizedTrainsetId)
+    if (!trainset) throw notFound('Trainset not found')
+    if (Number(trainset.TRAIN_ID) !== Number(trip.TRAIN_ID)) {
+      throw badRequest('The selected trainset belongs to a different train service')
+    }
+
+    const current = await getActiveAssignment(connection, normalizedTripId)
+    if (current && Number(current.TRAINSET_ID) === normalizedTrainsetId) {
+      return {
+        tripId: normalizedTripId,
+        trainsetId: normalizedTrainsetId,
+        trainsetCode: trainset.TRAINSET_CODE,
+        assignmentStatus: current.ASSIGNMENT_STATUS,
+      }
+    }
+
+    if (String(trainset.STATUS).toUpperCase() !== 'SPARE') {
+      throw conflict('Only a SPARE trainset can be assigned')
+    }
+    if (
+      trainset.CURRENT_STATION_ID &&
+      Number(trainset.CURRENT_STATION_ID) !== Number(trip.SOURCE_STATION_ID)
+    ) {
+      throw conflict('The trainset is not available at this trip’s departure station')
+    }
+
+    if (current) {
+      await cancelAssignment(connection, current.ASSIGNMENT_ID, 'Replaced by an admin assignment')
+      await releaseTrainset(connection, current.TRAINSET_ID)
+    }
+
+    await createAssignment(connection, {
+      tripId: normalizedTripId,
+      trainsetId: normalizedTrainsetId,
+      trainId: trip.TRAIN_ID,
+      type: 'MANUAL',
+      status: 'RESERVED',
+      reason: 'Assigned by admin',
+    })
+    await setTrainsetStatus(
+      connection,
+      normalizedTrainsetId,
+      'RESERVED',
+      trip.SOURCE_STATION_ID
+    )
+
+    return {
+      tripId: normalizedTripId,
+      trainsetId: normalizedTrainsetId,
+      trainsetCode: trainset.TRAINSET_CODE,
+      assignmentStatus: 'RESERVED',
     }
   })
 }

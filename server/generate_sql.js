@@ -13,6 +13,22 @@ function timeToMin(t) {
   return parseInt(parts[0]) * 60 + parseInt(parts[1]);
 }
 
+function distanceFromSource(stop, serviceId) {
+  const rawDistance = stop['Distance_From_Source_KM'];
+  if (rawDistance === undefined || String(rawDistance).trim() === '') {
+    throw new Error(
+      `Missing Distance_From_Source_KM for ${serviceId} stop ${stop['Stop_Sequence']} (${stop['Station']}). ` +
+      'Refusing to generate fabricated route distances.'
+    );
+  }
+
+  const distance = Number(rawDistance);
+  if (!Number.isFinite(distance) || distance < 0) {
+    throw new Error(`Invalid Distance_From_Source_KM for ${serviceId}: ${rawDistance}`);
+  }
+  return distance;
+}
+
 let sql = `
 -- =======================================================
 -- FERROVIA AUTO GENERATED SQL FOR 301 TRAINS
@@ -148,7 +164,7 @@ for (let group of trainGroups) {
 
       let sqlArr = arrOffset !== null ? arrOffset : 'NULL';
       let sqlDep = depOffset !== null ? depOffset : 'NULL';
-      const dist = j * 10; 
+      const dist = distanceFromSource(stp, sId);
       
       stopsSql.push(`  (v_route_id, get_or_create_station('${stpName}'), ${seq}, ${sqlArr}, ${sqlDep}, ${dist})`);
     }

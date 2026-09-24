@@ -3,7 +3,7 @@
 Run on a fresh PostgreSQL database in this order:
 
 1. `schema.sql`
-2. `seed-demo.sql`
+2. `seed-local.sql`
 
 The schema contains the complete railway data model plus:
 
@@ -14,7 +14,7 @@ Core operational tables include `ROUTES`, `ROUTE_STOPS`, `TRAINSETS`, `TRAINSET_
 
 `ROUTE_STOPS` stores the fixed public timetable. `TRIP_STOPS` stores scheduled and actual events for each dated trip. `VW_LIVE_TRAIN_STATUS` derives the last station left, current delay, next station, and spare-trigger state.
 
-The demo seed creates Suborno Express in both directions, twelve stations, three travel classes, fares, coaches and seats, two dated trips, three physical trainsets, and operator/admin accounts.
+The seed data creates Suborno Express in both directions, twelve stations, three travel classes, fares, coaches and seats, two dated trips, three physical trainsets, and operator/admin accounts.
 
 Additional scripts:
 

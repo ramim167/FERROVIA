@@ -101,3 +101,23 @@ export async function listTrainsets(connection, trainId = null) {
   const result = await connection.query(sql, params)
   return result.rows
 }
+
+export async function getTrainsetForUpdate(connection, trainsetId) {
+  const result = await connection.query(
+    `SELECT TRAINSET_ID, TRAINSET_CODE, TRAIN_ID, STATUS, CURRENT_STATION_ID
+       FROM TRAINSETS
+      WHERE TRAINSET_ID = $1
+      FOR UPDATE`,
+    [trainsetId]
+  )
+  return result.rows[0] || null
+}
+
+export async function releaseTrainset(connection, trainsetId) {
+  await connection.query(
+    `UPDATE TRAINSETS
+        SET STATUS = 'SPARE', STATUS_UPDATED_AT = CURRENT_TIMESTAMP
+      WHERE TRAINSET_ID = $1`,
+    [trainsetId]
+  )
+}

@@ -28,27 +28,6 @@ export async function getRoute(connection, routeId) {
   return result.rows[0] || null
 }
 
-export async function createTrip(connection, { route, scheduledDeparture, operatorUserId }) {
-  const result = await connection.query(
-    `INSERT INTO TRIPS
-      (TRAIN_ID, ROUTE_ID, JOURNEY_DATE, SCHEDULED_DEPARTURE, SCHEDULED_ARRIVAL,
-       TRIP_STATUS, OPERATOR_USER_ID)
-     VALUES
-      ($1, $2, DATE($3), $3,
-       $3::timestamp + ($4 * interval '1 minute'),
-       'SCHEDULED', $5)
-     RETURNING TRIP_ID`,
-    [
-      route.TRAIN_ID,
-      route.ROUTE_ID,
-      scheduledDeparture,
-      Number(route.DURATION_MIN),
-      operatorUserId || null,
-    ]
-  )
-  return result.rows[0].TRIP_ID
-}
-
 export async function materializeTripStops(connection, tripId) {
   await connection.query(
     `INSERT INTO TRIP_STOPS
@@ -77,17 +56,6 @@ export async function materializeTripSeats(connection, tripId) {
         AND S.IS_ACTIVE = 1`,
     [tripId]
   )
-}
-
-export async function getTrainsetForUpdate(connection, trainsetId) {
-  const result = await connection.query(
-    `SELECT TRAINSET_ID, TRAIN_ID, TRAINSET_CODE, STATUS, CURRENT_STATION_ID
-       FROM TRAINSETS
-      WHERE TRAINSET_ID = $1
-      FOR UPDATE`,
-    [trainsetId]
-  )
-  return result.rows[0] || null
 }
 
 export async function assignOperator(connection, tripId, operatorUserId) {
@@ -122,8 +90,12 @@ export async function listAdminTrips(connection, date = null) {
             T.TRIP_STATUS, T.OPERATOR_USER_ID,
             TR.TRAIN_ID, TR.TRAIN_NAME, TR.TRAIN_CODE,
             R.ROUTE_ID, R.ROUTE_CODE, R.DIRECTION,
-            SRC.STATION_NAME AS SOURCE_STATION, DST.STATION_NAME AS DESTINATION_STATION,
+            R.SOURCE_STATION_ID, SRC.STATION_NAME AS SOURCE_STATION,
+            R.DESTINATION_STATION_ID, DST.STATION_NAME AS DESTINATION_STATION,
             U.FULL_NAME AS OPERATOR_NAME,
+            TA.TRAINSET_ID AS ASSIGNED_TRAINSET_ID,
+            ATS.TRAINSET_CODE AS ASSIGNED_TRAINSET_CODE,
+            TA.ASSIGNMENT_STATUS AS TRAINSET_ASSIGNMENT_STATUS,
             COALESCE(L.CURRENT_DELAY_MINUTES,0) AS CURRENT_DELAY_MINUTES,
             L.LAST_LEFT_STATION, L.NEXT_STATION
        FROM TRIPS T
@@ -132,6 +104,10 @@ export async function listAdminTrips(connection, date = null) {
        JOIN STATIONS SRC ON SRC.STATION_ID = R.SOURCE_STATION_ID
        JOIN STATIONS DST ON DST.STATION_ID = R.DESTINATION_STATION_ID
        LEFT JOIN USERS U ON U.USER_ID = T.OPERATOR_USER_ID
+       LEFT JOIN TRAINSET_ASSIGNMENTS TA
+         ON TA.TRIP_ID = T.TRIP_ID
+        AND TA.ASSIGNMENT_STATUS IN ('RESERVED','ACTIVE')
+       LEFT JOIN TRAINSETS ATS ON ATS.TRAINSET_ID = TA.TRAINSET_ID
        LEFT JOIN VW_LIVE_TRAIN_STATUS L ON L.TRIP_ID = T.TRIP_ID
       WHERE ($1::date IS NULL OR DATE(T.JOURNEY_DATE) = $1::date)
       ORDER BY T.SCHEDULED_DEPARTURE`,

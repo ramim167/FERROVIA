@@ -1,7 +1,8 @@
 import { Router } from 'express'
 import {
   assignOperator,
-  createTrip,
+  assignTrainset,
+  rejectTripIssue,
   operators,
   routes,
   trainsets,
@@ -35,6 +36,7 @@ router.post(
   '/train-services',
   asyncHandler(createTrainService)
 )
-router.post('/trips', asyncHandler(createTrip))
+router.post('/trips', asyncHandler(rejectTripIssue))
 router.patch('/trips/:tripId/operator', asyncHandler(assignOperator))
+router.patch('/trips/:tripId/trainset', asyncHandler(assignTrainset))
 export default router

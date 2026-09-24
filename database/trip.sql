@@ -6,59 +6,27 @@ INSERT INTO CLASS_TYPES (CLASS_NAME, CLASS_CODE)
 VALUES
     ('SHOVAN', 'S_CHAIR'),
     ('SNIGDHA', 'SN'),
-    ('AC SEAT', 'AC_S')
+    ('AC BERTH', 'AC_B')
 ON CONFLICT (CLASS_CODE) DO NOTHING;
 
--- Default fare rules for every train/class.
--- Change these base fares/rates if you want a different pricing policy.
+-- Network-wide fare policy, calibrated to the supplied 300 km reference:
+-- Shovan = 500 / 300, Snigdha = 1100 / 300, AC Berth = 1800 / 300.
 INSERT INTO FARE_RULES (TRAIN_ID, CLASS_ID, RATE_PER_KM, BASE_FARE)
 SELECT
     t.TRAIN_ID,
     c.CLASS_ID,
     CASE c.CLASS_CODE
-        WHEN 'S_CHAIR' THEN
-            CASE
-                WHEN UPPER(t.TRAIN_TYPE) LIKE '%INTERCITY%' THEN 1.50
-                WHEN UPPER(t.TRAIN_TYPE) LIKE '%COMMUTER%' THEN 1.00
-                ELSE 1.20
-            END
-        WHEN 'SN' THEN
-            CASE
-                WHEN UPPER(t.TRAIN_TYPE) LIKE '%INTERCITY%' THEN 2.50
-                WHEN UPPER(t.TRAIN_TYPE) LIKE '%COMMUTER%' THEN 1.80
-                ELSE 2.00
-            END
-        WHEN 'AC_S' THEN
-            CASE
-                WHEN UPPER(t.TRAIN_TYPE) LIKE '%INTERCITY%' THEN 3.50
-                WHEN UPPER(t.TRAIN_TYPE) LIKE '%COMMUTER%' THEN 2.70
-                ELSE 3.00
-            END
+        WHEN 'S_CHAIR' THEN 1.666667
+        WHEN 'SN' THEN 3.666667
+        WHEN 'AC_B' THEN 6.000000
     END AS RATE_PER_KM,
-    CASE c.CLASS_CODE
-        WHEN 'S_CHAIR' THEN
-            CASE
-                WHEN UPPER(t.TRAIN_TYPE) LIKE '%INTERCITY%' THEN 50
-                WHEN UPPER(t.TRAIN_TYPE) LIKE '%COMMUTER%' THEN 30
-                ELSE 40
-            END
-        WHEN 'SN' THEN
-            CASE
-                WHEN UPPER(t.TRAIN_TYPE) LIKE '%INTERCITY%' THEN 100
-                WHEN UPPER(t.TRAIN_TYPE) LIKE '%COMMUTER%' THEN 70
-                ELSE 80
-            END
-        WHEN 'AC_S' THEN
-            CASE
-                WHEN UPPER(t.TRAIN_TYPE) LIKE '%INTERCITY%' THEN 150
-                WHEN UPPER(t.TRAIN_TYPE) LIKE '%COMMUTER%' THEN 110
-                ELSE 120
-            END
-    END AS BASE_FARE
+    0 AS BASE_FARE
 FROM TRAINS t
 JOIN CLASS_TYPES c
-    ON c.CLASS_CODE IN ('S_CHAIR', 'SN', 'AC_S')
-ON CONFLICT (TRAIN_ID, CLASS_ID) DO NOTHING;
+    ON c.CLASS_CODE IN ('S_CHAIR', 'SN', 'AC_B')
+ON CONFLICT (TRAIN_ID, CLASS_ID) DO UPDATE SET
+    RATE_PER_KM = EXCLUDED.RATE_PER_KM,
+    BASE_FARE = EXCLUDED.BASE_FARE;
 
 -- Existing passenger fare APIs need seats/classes to exist.
 -- For trains imported without a seat layout, create a small default layout.
@@ -83,29 +51,29 @@ BEGIN
         FOR v_class IN (
             SELECT CLASS_ID, CLASS_CODE
             FROM CLASS_TYPES
-            WHERE CLASS_CODE IN ('S_CHAIR', 'SN', 'AC_S')
+            WHERE CLASS_CODE IN ('S_CHAIR', 'SN', 'AC_B')
             ORDER BY CASE CLASS_CODE
                 WHEN 'S_CHAIR' THEN 1
                 WHEN 'SN' THEN 2
-                WHEN 'AC_S' THEN 3
+                WHEN 'AC_B' THEN 3
             END
         ) LOOP
             v_coach_order := CASE v_class.CLASS_CODE
                 WHEN 'S_CHAIR' THEN 1
                 WHEN 'SN' THEN 2
-                WHEN 'AC_S' THEN 3
+                WHEN 'AC_B' THEN 3
             END;
 
             v_coach_code := CASE v_class.CLASS_CODE
                 WHEN 'S_CHAIR' THEN 'A'
                 WHEN 'SN' THEN 'B'
-                WHEN 'AC_S' THEN 'C'
+                WHEN 'AC_B' THEN 'C'
             END;
 
             v_seat_count := CASE v_class.CLASS_CODE
                 WHEN 'S_CHAIR' THEN 40
                 WHEN 'SN' THEN 32
-                WHEN 'AC_S' THEN 24
+                WHEN 'AC_B' THEN 24
             END;
 
             INSERT INTO COACHES (TRAIN_ID, CLASS_ID, COACH_CODE, COACH_ORDER)
@@ -122,7 +90,11 @@ BEGIN
             SELECT
                 v_coach_id,
                 seat_no::VARCHAR,
-                CASE WHEN seat_no % 4 IN (1, 0) THEN 'WINDOW' ELSE 'AISLE' END
+                CASE
+                    WHEN v_class.CLASS_CODE = 'AC_B' THEN 'BERTH'
+                    WHEN seat_no % 4 IN (1, 0) THEN 'WINDOW'
+                    ELSE 'AISLE'
+                END
             FROM generate_series(1, v_seat_count) AS seat_no
             ON CONFLICT (COACH_ID, SEAT_NUMBER) DO NOTHING;
         END LOOP;

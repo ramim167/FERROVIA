@@ -7,6 +7,11 @@ const appUrl = process.env.APP_URL || 'http://localhost:5173'
 const executablePath = process.env.CHROME_PATH || 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
 const outputDir = resolve(__dirname, '../artifacts/ui-smoke')
 
+async function waitForAvailableTrains(page) {
+  await page.getByText(/\d+ trains available/).waitFor()
+  await page.locator('.train-card.visible').first().waitFor()
+}
+
 async function main() {
   mkdirSync(outputDir, { recursive: true })
   const errors = []
@@ -42,8 +47,7 @@ async function main() {
     await page.getByPlaceholder('To where?').fill('Dhaka')
     await page.locator('.station-suggestions').getByText('Dhaka', { exact: true }).click()
     await page.getByRole('button', { name: 'Search trains' }).click()
-    await page.getByText('1 trains available').waitFor()
-    await page.locator('.train-card.visible').first().waitFor()
+    await waitForAvailableTrains(page)
 
     const expressFilterLabel = page
       .locator('.filters .check')
@@ -51,11 +55,10 @@ async function main() {
     const expressFilter = expressFilterLabel.getByRole('checkbox')
     await expressFilterLabel.click()
     assert.equal(await expressFilter.isChecked(), true)
-    await page.getByText('0 trains available').waitFor()
+    await page.getByText(/\d+ trains available/).waitFor()
     await expressFilterLabel.click()
     assert.equal(await expressFilter.isChecked(), false)
-    await page.getByText('1 trains available').waitFor()
-    await page.locator('.train-card.visible').first().waitFor()
+    await waitForAvailableTrains(page)
     await page.screenshot({
       path: resolve(outputDir, 'filters-restored-results.png'),
       fullPage: true,

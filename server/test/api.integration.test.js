@@ -34,6 +34,22 @@ async function request(path, { token, body, method = 'GET' } = {}) {
   return payload.data ?? payload
 }
 
+async function requestRaw(path, { token, body, method = 'GET' } = {}) {
+  const response = await fetch(`${baseUrl}${path}`, {
+    method,
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+    },
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+  })
+
+  return {
+    status: response.status,
+    payload: await response.json(),
+  }
+}
+
 function today() {
   return new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Dhaka' })
 }
@@ -71,6 +87,22 @@ test('health, stations and train services are available', async () => {
   assert.equal(trains[0].train_code, 'SUBORNO')
 })
 
+test('300 km reference fares match Shovan, Snigdha and AC Berth policy', async () => {
+  const { fareForSegment } = await import('../src/services/booking.service.js')
+  const segment = { SOURCE_DISTANCE_KM: 0, DEST_DISTANCE_KM: 300 }
+
+  assert.equal(fareForSegment(segment, { BASE_FARE: 0, RATE_PER_KM: 1.666667 }), 500)
+  assert.equal(fareForSegment(segment, { BASE_FARE: 0, RATE_PER_KM: 3.666667 }), 1100)
+  assert.equal(fareForSegment(segment, { BASE_FARE: 0, RATE_PER_KM: 6 }), 1800)
+  assert.equal(
+    fareForSegment(
+      { SOURCE_DISTANCE_KM: 0, DEST_DISTANCE_KM: 1 },
+      { BASE_FARE: 0, RATE_PER_KM: 1933.33 }
+    ),
+    1940
+  )
+})
+
 test('public registration always creates a passenger account', async () => {
   const session = await request('/auth/register', {
     method: 'POST',
@@ -89,7 +121,7 @@ test('public registration always creates a passenger account', async () => {
   assert.equal(me.email, 'passenger.test@ferrovia.local')
 })
 
-test('demo operator and admin accounts authenticate', async () => {
+test('seeded operator and admin accounts authenticate', async () => {
   const operator = await request('/auth/login', {
     method: 'POST',
     body: { email: 'operator@ferrovia.local', password: 'Operator123!' },
@@ -113,6 +145,7 @@ test('passenger can search, reserve, pay, view and cancel a ticket', async () =>
   const segment = `tripId=${searchedTrip.trip_id}&sourceStationId=${searchedTrip.source_station_id}&destinationStationId=${searchedTrip.destination_station_id}`
   const classes = await request(`/bookings/classes?${segment}`)
   assert.ok(classes.length > 0)
+  assert.deepEqual(classes.map(item => item.classCode), ['S_CHAIR', 'SN', 'AC_B'])
   selectedClass = classes[0]
 
   const seatData = await request(`/bookings/seats?${segment}&classId=${selectedClass.classId}`)
@@ -243,24 +276,154 @@ test('admin can inspect, edit, create and assign railway operations', async () =
   })
   assert.equal(updatedRoute.route.route_code, route.route_code)
 
-  const departure = new Date(Date.now() + 36 * 60 * 60 * 1000).toISOString()
-  const createdTrip = await request('/admin/trips', {
+  const manualTrip = await requestRaw('/admin/trips', {
     method: 'POST',
     token: adminToken,
-    body: {
-      routeId: routes[0].route_id,
-      scheduledDeparture: departure,
-      operatorUserId: operators[0].user_id,
-    },
+    body: { routeId: routes[0].route_id, scheduledDeparture: new Date().toISOString() },
   })
-  assert.ok(createdTrip.trip_id)
+  assert.equal(manualTrip.status, 403)
 
-  const assigned = await request(`/admin/trips/${createdTrip.trip_id}/operator`, {
+  const scheduledTrips = await request(`/admin/trips?date=${today()}`, { token: adminToken })
+  assert.ok(scheduledTrips.length > 0)
+
+  const assigned = await request(`/admin/trips/${scheduledTrips[0].trip_id}/operator`, {
     method: 'PATCH',
     token: adminToken,
     body: { operatorUserId: operators[0].user_id },
   })
   assert.equal(assigned.operatorUserId, operators[0].user_id)
+
+  const trainsetTrip = scheduledTrips.find(item =>
+    item.trip_status === 'SCHEDULED' && item.source_station === 'Chattogram'
+  )
+  const availableTrainset = trainsets.find(item =>
+    item.status === 'SPARE' && item.current_station === 'Chattogram'
+  )
+  assert.ok(trainsetTrip)
+  assert.ok(availableTrainset)
+
+  const trainsetAssignment = await request(`/admin/trips/${trainsetTrip.trip_id}/trainset`, {
+    method: 'PATCH',
+    token: adminToken,
+    body: { trainsetId: availableTrainset.trainset_id },
+  })
+  assert.equal(trainsetAssignment.trainsetId, availableTrainset.trainset_id)
+  assert.equal(trainsetAssignment.assignmentStatus, 'RESERVED')
+})
+
+test('unassigned departed trips are cancelled and confirmed bookings receive refund requests', async () => {
+  const database = await import('../src/config/database.js')
+  const { autoCancelUnassignedTrips } = await import('../src/services/schedule.service.js')
+
+  const setup = await database.withTransaction(async connection => {
+    const route = (await connection.query('SELECT * FROM ROUTES WHERE ROUTE_CODE = $1', ['SUB-UP'])).rows[0]
+    const user = (await connection.query('SELECT USER_ID FROM USERS WHERE EMAIL = $1', ['passenger.test@ferrovia.local'])).rows[0]
+    const classType = (await connection.query('SELECT CLASS_ID FROM CLASS_TYPES WHERE CLASS_CODE = $1', ['S_CHAIR'])).rows[0]
+    const tripResult = await connection.query(
+      `INSERT INTO TRIPS
+        (TRAIN_ID, ROUTE_ID, JOURNEY_DATE, SCHEDULED_DEPARTURE, SCHEDULED_ARRIVAL, TRIP_STATUS)
+       VALUES
+        ($1, $2, CURRENT_DATE, CURRENT_TIMESTAMP - INTERVAL '5 MINUTE',
+         CURRENT_TIMESTAMP + INTERVAL '55 MINUTE', 'SCHEDULED')
+       RETURNING TRIP_ID`,
+      [route.TRAIN_ID, route.ROUTE_ID]
+    )
+    const tripId = tripResult.rows[0].TRIP_ID
+
+    const { materializeTripSeats, materializeTripStops } = await import('../src/repositories/admin.repository.js')
+    await materializeTripStops(connection, tripId)
+    await materializeTripSeats(connection, tripId)
+
+    const stops = (await connection.query(
+      `SELECT STATION_ID, STOP_SEQUENCE
+         FROM TRIP_STOPS
+        WHERE TRIP_ID = $1
+        ORDER BY STOP_SEQUENCE`,
+      [tripId]
+    )).rows
+    const tripSeat = (await connection.query(
+      `SELECT TS.TRIP_SEAT_ID
+         FROM TRIP_SEATS TS
+         JOIN SEATS S ON S.SEAT_ID = TS.SEAT_ID
+         JOIN COACHES C ON C.COACH_ID = S.COACH_ID
+        WHERE TS.TRIP_ID = $1
+          AND C.CLASS_ID = $2
+        LIMIT 1`,
+      [tripId, classType.CLASS_ID]
+    )).rows[0]
+
+    const booking = (await connection.query(
+      `INSERT INTO BOOKINGS
+        (PNR_NUMBER, USER_ID, TRIP_ID, SOURCE_STATION_ID, DESTINATION_STATION_ID,
+         CLASS_ID, TOTAL_FARE, BOOKING_STATUS)
+       VALUES
+        ('AUTOREFUND1', $1, $2, $3, $4, $5, 100, 'CONFIRMED')
+       RETURNING BOOKING_ID`,
+      [
+        user.USER_ID,
+        tripId,
+        stops[0].STATION_ID,
+        stops[stops.length - 1].STATION_ID,
+        classType.CLASS_ID,
+      ]
+    )).rows[0]
+    const passenger = (await connection.query(
+      `INSERT INTO PASSENGERS (BOOKING_ID, PASSENGER_NAME, AGE, GENDER)
+       VALUES ($1, 'Auto Refund Passenger', 30, 'OTHER')
+       RETURNING PASSENGER_ID`,
+      [booking.BOOKING_ID]
+    )).rows[0]
+    const reservation = (await connection.query(
+      `INSERT INTO SEAT_RESERVATIONS
+        (BOOKING_ID, PASSENGER_ID, TRIP_SEAT_ID, SOURCE_STATION_ID, DESTINATION_STATION_ID,
+         SOURCE_STOP_SEQUENCE, DESTINATION_STOP_SEQUENCE, RESERVATION_STATUS, BOOKED_AT)
+       VALUES
+        ($1, $2, $3, $4, $5, $6, $7, 'BOOKED', CURRENT_TIMESTAMP)
+       RETURNING RESERVATION_ID`,
+      [
+        booking.BOOKING_ID,
+        passenger.PASSENGER_ID,
+        tripSeat.TRIP_SEAT_ID,
+        stops[0].STATION_ID,
+        stops[stops.length - 1].STATION_ID,
+        stops[0].STOP_SEQUENCE,
+        stops[stops.length - 1].STOP_SEQUENCE,
+      ]
+    )).rows[0]
+    await connection.query(
+      `INSERT INTO PAYMENTS (BOOKING_ID, TRANSACTION_ID, PAYMENT_AMOUNT, PAYMENT_METHOD, PAYMENT_STATUS)
+       VALUES ($1, 'AUTOREFUND-TXN-1', 100, 'CARD', 'SUCCESSFUL')`,
+      [booking.BOOKING_ID]
+    )
+    await connection.query(
+      `INSERT INTO TICKETS (PASSENGER_ID, RESERVATION_ID, TICKET_FARE, TICKET_STATUS)
+       VALUES ($1, $2, 100, 'CONFIRMED')`,
+      [passenger.PASSENGER_ID, reservation.RESERVATION_ID]
+    )
+
+    return { tripId, bookingId: booking.BOOKING_ID }
+  })
+
+  const result = await autoCancelUnassignedTrips()
+  assert.ok(result.cancelledTrips >= 1)
+  assert.ok(result.refundRequests >= 1)
+
+  await database.withConnection(async connection => {
+    const trip = (await connection.query('SELECT TRIP_STATUS FROM TRIPS WHERE TRIP_ID = $1', [setup.tripId])).rows[0]
+    const booking = (await connection.query('SELECT BOOKING_STATUS FROM BOOKINGS WHERE BOOKING_ID = $1', [setup.bookingId])).rows[0]
+    const refunds = (await connection.query(
+      `SELECT COUNT(*)::INT AS REFUND_COUNT
+         FROM REFUNDS RF
+         JOIN TICKETS TK ON TK.TICKET_ID = RF.TICKET_ID
+         JOIN PASSENGERS P ON P.PASSENGER_ID = TK.PASSENGER_ID
+        WHERE P.BOOKING_ID = $1`,
+      [setup.bookingId]
+    )).rows[0]
+
+    assert.equal(trip.TRIP_STATUS, 'CANCELLED')
+    assert.equal(booking.BOOKING_STATUS, 'CANCELLED')
+    assert.equal(Number(refunds.REFUND_COUNT), 1)
+  })
 })
 
 test('admin can add a complete train service', async () => {

@@ -1,5 +1,7 @@
 const { spawn } = require('node:child_process')
 
+const databaseMode = process.argv.includes('--memory') ? 'memory' : 'postgres'
+
 const processes = [
   {
     name: 'server',
@@ -35,7 +37,10 @@ function stopAll(exitCode = 0) {
 for (const config of processes) {
   const child = spawn(config.command, {
     cwd: __dirname + '/..',
-    env: process.env,
+    env: {
+      ...process.env,
+      ...(config.name === 'server' ? { DATABASE_MODE: databaseMode } : {}),
+    },
     shell: true,
   })
 

@@ -4,7 +4,7 @@ Express and PostgreSQL API for passenger booking, ticketing, notifications, live
 
 ## Environment
 
-Zero-setup local demo:
+Zero-setup local run:
 
 ```env
 PORT=5000
@@ -40,7 +40,7 @@ npm test
 npm run check
 ```
 
-`npm test` covers health, authentication, train search, fares, seat availability, booking, payment, cancellation/refunds, notifications, tracking, operator station progression, spare rotation, and admin train/trip management.
+`npm test` covers health, authentication, train search, fares, seat availability, booking, payment, cancellation/refunds, notifications, tracking, operator station progression, spare rotation, automatic trip issuing, and admin operator assignment.
 
 ## API Groups
 

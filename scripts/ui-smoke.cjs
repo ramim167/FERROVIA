@@ -68,7 +68,7 @@ async function runPassengerFlow(browser, errors) {
 
   await page.getByRole('heading', { name: 'Choose payment method' }).waitFor()
   await page.getByPlaceholder('01XXXXXXXXX').fill(phone)
-  await page.getByPlaceholder('Demo transaction ID').fill(`BROWSER-${unique}`)
+  await page.getByPlaceholder('Transaction ID').fill(`BROWSER-${unique}`)
   await page.getByRole('button', { name: /Pay .* confirm/ }).click()
   await page.getByRole('heading', { name: 'Your ticket is ready!' }).waitFor()
   await page.waitForTimeout(transitionDelay)

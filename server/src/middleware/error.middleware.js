@@ -5,8 +5,8 @@ export function notFoundHandler(req, _res, next) {
 }
 
 export function errorHandler(error, _req, res, _next) {
-  console.error(error)
   const status = error.status || 500
+  if (status >= 500) console.error(error)
   const body = {
     success: false,
     error: status === 500 ? 'Internal server error' : error.message,

@@ -26,13 +26,16 @@ function makePnr() {
 }
 
 function makeTransactionId() {
-  return `DEMO-${Date.now()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`
+  return `TXN-${Date.now()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`
 }
 
-function fareForSegment(segment, fareRule) {
+export function fareForSegment(segment, fareRule) {
   const distance = Number(segment.DEST_DISTANCE_KM) - Number(segment.SOURCE_DISTANCE_KM)
   if (distance <= 0) throw badRequest('Invalid route distance for selected segment')
-  return Math.round((Number(fareRule.BASE_FARE) + distance * Number(fareRule.RATE_PER_KM)) * 100) / 100
+  const calculatedFare = Math.round(
+    (Number(fareRule.BASE_FARE) + distance * Number(fareRule.RATE_PER_KM)) * 100
+  ) / 100
+  return Math.ceil(calculatedFare / 10) * 10
 }
 
 export async function availableSeats(query) {
