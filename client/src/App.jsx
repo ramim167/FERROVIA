@@ -52,6 +52,32 @@ const delayText = (n) => (Number(n) > 0 ? `${n} min late` : "On time");
 const roleLabel = (r) =>
     r ? String(r).charAt(0) + String(r).slice(1).toLowerCase() : "Passenger";
 
+function restrictDigits(event, maxLength) {
+    const input = event.currentTarget;
+    input.value = input.value.replace(/\D/g, "").slice(0, maxLength);
+}
+
+function formatFutureCardExpiry(event) {
+    const input = event.currentTarget;
+    const digits = input.value.replace(/\D/g, "").slice(0, 4);
+    input.value = digits.length > 2
+        ? `${digits.slice(0, 2)}/${digits.slice(2)}`
+        : digits;
+
+    const match = input.value.match(/^(0[1-9]|1[0-2])\/([0-9]{2})$/);
+    if (!match) {
+        input.setCustomValidity("");
+        return;
+    }
+
+    const expiryYear = 2000 + Number(match[2]);
+    const expiryMonth = Number(match[1]);
+    const now = new Date();
+    const isFuture = expiryYear > now.getFullYear() ||
+        (expiryYear === now.getFullYear() && expiryMonth > now.getMonth() + 1);
+    input.setCustomValidity(isFuture ? "" : "Expiry must be after the current month.");
+}
+
 function useReveal(deps = []) {
     useEffect(() => {
         const reduce = window.matchMedia(
@@ -688,8 +714,7 @@ function Home({ search, setSearch, doSearch, navigate, stations }) {
                         <em>Arrive inspired.</em>
                     </h1>
                     <p>
-                        Search, reserve and track your railway journey through a secure
-                        database-backed travel workspace.
+                        Search, reserve and track your railway journey in one place.
                     </p>
                     <div className="hero-actions">
                         <button className="primary" onClick={doSearch}>
@@ -704,7 +729,7 @@ function Home({ search, setSearch, doSearch, navigate, stations }) {
                             <Icon name="shield" size={16} /> Secure account booking
                         </span>
                         <span>
-                            <Icon name="ticket" size={16} /> Database-backed e-ticket
+                            <Icon name="ticket" size={16} /> E-ticket booking
                         </span>
                         <span>
                             <Icon name="clock" size={16} /> Live delay status
@@ -747,7 +772,7 @@ function Home({ search, setSearch, doSearch, navigate, stations }) {
                     <Icon name="shield" size={24} />
                     <div>
                         <Counter value="10" suffix=" min" />
-                        <span>database seat-hold window</span>
+                        <span>seat-hold window</span>
                     </div>
                 </article>
             </section>
@@ -1049,9 +1074,6 @@ function Summary({ train, cls, search, seatLabels, total }) {
                 <span>Total fare</span>
                 <b>{money(total)}</b>
             </div>
-            <div className="summary-safe">
-                <Icon name="shield" size={16} /> Fare is calculated by the backend
-            </div>
         </aside>
     );
 }
@@ -1075,7 +1097,15 @@ function SeatPage({
                     (m[s.coach_code] ??= []).push(s);
                     return m;
                 }, {})
-            ),
+            ).map(([coach, seats]) => [
+                coach,
+                [...seats].sort((a, b) =>
+                    String(a.seat_number).localeCompare(String(b.seat_number), undefined, {
+                        numeric: true,
+                        sensitivity: "base",
+                    })
+                ),
+            ]),
         [seatList]
     );
     return (
@@ -1188,7 +1218,7 @@ function PassengerPage({
             <div className="page-title">
                 <span className="eyebrow">PASSENGER DETAILS</span>
                 <h1>Who is travelling?</h1>
-                <p>Each passenger is tied to one selected database seat.</p>
+                <p>Enter the details for each selected seat.</p>
             </div>
             <div className="booking-layout">
                 <section className="passenger-panel card">
@@ -1328,17 +1358,37 @@ function PaymentPage({
                                 <input
                                     required
                                     inputMode="numeric"
-                                    placeholder="1234 5678 9012 3456"
+                                    autoComplete="cc-number"
+                                    placeholder="16-digit card number"
+                                    pattern="[0-9]{16}"
+                                    maxLength={16}
+                                    onInput={(event) => restrictDigits(event, 16)}
                                 />
                             </label>
                             <div className="form-row">
                                 <label>
                                     Expiry
-                                    <input required placeholder="MM/YY" />
+                                    <input
+                                        required
+                                        inputMode="numeric"
+                                        autoComplete="cc-exp"
+                                        placeholder="MM/YY"
+                                        pattern="(0[1-9]|1[0-2])/[0-9]{2}"
+                                        maxLength={5}
+                                        onInput={formatFutureCardExpiry}
+                                    />
                                 </label>
                                 <label>
                                     CVV
-                                    <input required placeholder="123" maxLength="4" />
+                                    <input
+                                        required
+                                        inputMode="numeric"
+                                        autoComplete="cc-csc"
+                                        placeholder="123"
+                                        pattern="[0-9]{3}"
+                                        maxLength={3}
+                                        onInput={(event) => restrictDigits(event, 3)}
+                                    />
                                 </label>
                             </div>
                         </>
@@ -1359,7 +1409,7 @@ function PaymentPage({
                     </div>
                     <div className="fare-lines">
                         <span>
-                            Backend ticket fare <b>{money(total)}</b>
+                            Ticket fare <b>{money(total)}</b>
                         </span>
                         <span>
                             Service fee <b>{money(0)}</b>
@@ -1420,11 +1470,10 @@ function Confirmation({ booking, navigate }) {
                 <div className="success-icon">
                     <Icon name="check" size={30} />
                 </div>
-                <span className="eyebrow">DATABASE BOOKING CONFIRMED</span>
+                <span className="eyebrow">BOOKING CONFIRMED</span>
                 <h1>Your ticket is ready!</h1>
                 <p>
-                    Payment, booking, reservations and ticket rows have been committed in
-                    the booking database.
+                    Your payment is confirmed and your seat is reserved.
                 </p>
                 <div className="ticket">
                     <div className="ticket-main">
@@ -1521,8 +1570,7 @@ function Dashboard({
                     </span>
                     <h1>Welcome back, {user.full_name?.split(" ")[0]}</h1>
                     <p>
-                        Your database-backed bookings, live railway tools and account
-                        activity in one workspace.
+                        Your bookings, live train updates and account activity in one place.
                     </p>
                     <div className="hero-actions">
                         <button className="primary" onClick={() => navigate("search")}>
@@ -1717,7 +1765,7 @@ function Tickets({ user, bookings, navigate, cancel, onAuth, handleError }) {
     return (
         <main className="page">
             <div className="page-title">
-                <span className="eyebrow">MY POSTGRESQL BOOKINGS</span>
+                <span className="eyebrow">MY BOOKINGS</span>
                 <h1>Tickets & bookings</h1>
                 <p>View passenger seats, cancellation status and refund requests.</p>
             </div>
@@ -1757,7 +1805,7 @@ function Tickets({ user, bookings, navigate, cancel, onAuth, handleError }) {
                                 </div>
                                 <div>
                                     <b>{b.direction}</b>
-                                    <span>Database booking</span>
+                                    <span>Train direction</span>
                                 </div>
                                 <div>
                                     <b>{money(b.total_fare)}</b>
@@ -2132,7 +2180,7 @@ function NotificationsPage({
             <div className="page-title">
                 <span className="eyebrow">ACCOUNT ALERTS</span>
                 <h1>Notifications</h1>
-                <p>Database-backed booking and refund activity.</p>
+                <p>Your booking, travel and refund updates.</p>
             </div>
             <div className="notification-toolbar">
                 <button className="secondary" onClick={readAll}>
@@ -2574,8 +2622,8 @@ function AuthModal({ mode, setMode, close, onSuccess }) {
                     </span>
                     <h2>Welcome aboard!</h2>
                     <p>
-                        Passenger, Operator and Admin roles authenticate through the
-                        Express/SQL backend.
+                        Passengers, operators and admins use this portal to manage their
+                        railway journeys and services.
                     </p>
                     <img src={heroTrain} alt="Train" />
                 </div>

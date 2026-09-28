@@ -3435,18 +3435,6 @@ button {
 .empty svg {
   color: var(--teal);
 }
-.summary-safe {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  margin-top: 14px;
-  padding: 10px;
-  border-radius: 10px;
-  background: #eaf8f5;
-  color: var(--teal-dark);
-  font-size: 11px;
-  font-weight: 700;
-}
 .passenger-form {
   position: relative;
 }
@@ -6391,6 +6379,55 @@ button:disabled {
   white-space: nowrap;
 }
 
+.admin-routes-view {
+  display: grid;
+  gap: 16px;
+  padding: 0;
+}
+
+.admin-routes-view > .admin-route-card {
+  min-width: 0;
+  margin: 0;
+  padding: 24px;
+}
+
+.admin-route-card > hr {
+  width: 100%;
+  margin: 8px 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+
+.admin-running-days {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  gap: 8px;
+}
+
+.admin-running-day {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  padding: 11px 13px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  color: var(--ink);
+}
+
+.admin-running-day strong {
+  min-width: 38px;
+}
+
+.admin-running-day span {
+  color: var(--muted);
+}
+
+.admin-route-stops.admin-table-wrap table {
+  min-width: 700px;
+}
+
 .admin-config-list,
 .admin-config-table {
   margin-top: 18px;
@@ -6425,6 +6462,10 @@ button:disabled {
 
   .admin-route-editor button {
     width: 100%;
+  }
+
+  .admin-routes-view > .admin-route-card {
+    padding: 18px;
   }
 }
 
@@ -6650,6 +6691,10 @@ html[data-theme="dark"] body {
   color: #9aadb8;
 }
 
+.app[data-theme="dark"] .eyebrow {
+  color: #000;
+}
+
 .app[data-theme="dark"] .ai-panel {
   border-color: #30404c;
   background: #111820;
@@ -6730,6 +6775,18 @@ html[data-theme="dark"] body {
   background: rgba(21, 31, 41, 0.92);
   color: #e8f1f2;
   box-shadow: 0 18px 44px rgba(0, 0, 0, 0.24);
+}
+
+.app[data-theme="dark"] .booking-actions button {
+  color: #000;
+}
+
+.app[data-theme="dark"] .booking-actions button.danger-text {
+  color: #000 !important;
+}
+
+.app[data-theme="dark"] .seat-grid button:not(.selected) {
+  color: #000;
 }
 
 .app[data-theme="dark"] .stats,
@@ -6971,7 +7028,6 @@ html[data-theme="dark"] body {
 }
 
 .app[data-theme="dark"] .summary-train,
-.app[data-theme="dark"] .summary-safe,
 .app[data-theme="dark"] .selected-trip-summary,
 .app[data-theme="dark"] .pay-options label.selected,
 .app[data-theme="dark"] .passenger-number {
@@ -6981,9 +7037,7 @@ html[data-theme="dark"] body {
 }
 
 .app[data-theme="dark"] .summary-train b,
-.app[data-theme="dark"] .summary-train small,
-.app[data-theme="dark"] .summary-safe,
-.app[data-theme="dark"] .summary-safe svg {
+.app[data-theme="dark"] .summary-train small {
   color: #c9f4ef !important;
 }
 

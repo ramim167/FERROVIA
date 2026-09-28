@@ -1,7 +1,7 @@
 import crypto from 'node:crypto'
 import { withConnection, withTransaction } from '../config/database.js'
 import {
-  cancelBooking,
+  cancelBookingWorkflow,
   confirmBookingAndReservations,
   createBooking,
   createHeldReservation,
@@ -9,13 +9,12 @@ import {
   createPayment,
   createTicket,
   createNotification,
-  createRefundRequests,
   getBookingByPnr,
   getBookingForUpdate,
   getHeldReservations,
   listUserBookings,
 } from '../repositories/booking.repository.js'
-import { getFareRule, getTripSegment, hasOverlap, listAvailableSeats, lockTripSeat } from '../repositories/seat.repository.js'
+import { calculateTicketFare, getFareRule, getTripSegment, hasOverlap, listAvailableSeats, lockTripSeat } from '../repositories/seat.repository.js'
 import { badRequest, conflict, notFound } from '../utils/httpError.js'
 import { lowerKeys } from '../utils/serializers.js'
 
@@ -38,6 +37,28 @@ export function fareForSegment(segment, fareRule) {
   return Math.ceil(calculatedFare / 10) * 10
 }
 
+function isMissingDatabaseFunction(error) {
+  const message = String(error?.message || '').toLowerCase()
+  return (
+    error?.code === '42883' ||
+    error?.code === '42601' ||
+    message.includes('calculate_ticket_fare') ||
+    message.includes('does not exist') ||
+    message.includes('not supported')
+  )
+}
+
+async function fareForSegmentFromDatabase(connection, params, segment, fareRule) {
+  try {
+    const fare = await calculateTicketFare(connection, params)
+    if (fare !== null && fare !== undefined) return Number(fare)
+  } catch (error) {
+    if (!isMissingDatabaseFunction(error)) throw error
+  }
+
+  return fareForSegment(segment, fareRule)
+}
+
 export async function availableSeats(query) {
   const { tripId, sourceStationId, destinationStationId, classId } = query
   if (!tripId || !sourceStationId || !destinationStationId) {
@@ -56,7 +77,19 @@ export async function availableSeats(query) {
     let fare = null
     if (classId) {
       const fareRule = await getFareRule(connection, result.segment.TRAIN_ID, Number(classId))
-      if (fareRule) fare = fareForSegment(result.segment, fareRule)
+      if (fareRule) {
+        fare = await fareForSegmentFromDatabase(
+          connection,
+          {
+            tripId: Number(tripId),
+            sourceStationId: Number(sourceStationId),
+            destinationStationId: Number(destinationStationId),
+            classId: Number(classId),
+          },
+          result.segment,
+          fareRule
+        )
+      }
     }
 
     return lowerKeys({ ...result, farePerPassenger: fare })
@@ -98,7 +131,19 @@ export async function availableClasses(query) {
       const fareRule = await getFareRule(connection, result.segment.TRAIN_ID, item.classId)
       classes.push({
         ...item,
-        farePerPassenger: fareRule ? fareForSegment(result.segment, fareRule) : null,
+        farePerPassenger: fareRule
+          ? await fareForSegmentFromDatabase(
+            connection,
+            {
+              tripId: Number(tripId),
+              sourceStationId: Number(sourceStationId),
+              destinationStationId: Number(destinationStationId),
+              classId: item.classId,
+            },
+            result.segment,
+            fareRule
+          )
+          : null,
       })
     }
     classes.sort((a, b) => Number(a.farePerPassenger || 0) - Number(b.farePerPassenger || 0))
@@ -255,8 +300,7 @@ export async function cancelUserBooking(userId, pnr) {
       throw badRequest(`Booking is ${booking.BOOKING_STATUS.toLowerCase()}`)
     }
     const wasConfirmed = booking.BOOKING_STATUS === 'CONFIRMED'
-    if (wasConfirmed) await createRefundRequests(connection, booking.BOOKING_ID)
-    await cancelBooking(connection, booking.BOOKING_ID)
+    await cancelBookingWorkflow(connection, booking.BOOKING_ID)
     await createNotification(connection, {
       userId,
       bookingId: booking.BOOKING_ID,

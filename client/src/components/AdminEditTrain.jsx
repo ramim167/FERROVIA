@@ -5,7 +5,6 @@ import { api } from '../lib/api'
 
 function minuteToTime(value) {
     const total = Number(value)
-
     if (!Number.isFinite(total)) {
         return '—'
     }
@@ -494,9 +493,9 @@ export default function AdminEditTrain({
             }
 
             {trainData && !detailsLoading && activeTab === 'routes' &&
-                <section className="admin-edit-section">
+                <section className="admin-edit-section admin-routes-view">
 
-                    <div className="card">
+                    <div className="card admin-route-card">
 
                         <h2>Routes & Schedule</h2>
 
@@ -548,7 +547,7 @@ export default function AdminEditTrain({
 
                         return (
                             <section
-                                className="card"
+                                className="card admin-route-card"
                                 key={route.route_id}
                             >
 
@@ -592,22 +591,13 @@ export default function AdminEditTrain({
                                         <p>No running days configured.</p>
                                     )
                                     : (
-                                        <div>
+                                        <div className="admin-running-days">
 
                                             {runningDays.map(day => (
-                                                <p key={day.running_day_id}>
-
-                                                    <strong>
-                                                        {day.day_code}
-                                                    </strong>
-
-                                                    {' • Departure '}
-
-                                                    {minuteToTime(
-                                                        day.departure_minute
-                                                    )}
-
-                                                </p>
+                                                <div className="admin-running-day" key={day.running_day_id}>
+                                                    <strong>{day.day_code}</strong>
+                                                    <span>Departure {minuteToTime(day.departure_minute)}</span>
+                                                </div>
                                             ))}
 
                                         </div>
@@ -626,7 +616,7 @@ export default function AdminEditTrain({
                                         <p>No stops configured.</p>
                                     )
                                     : (
-                                        <div style={{ overflowX: 'auto' }}>
+                                        <div className="admin-table-wrap admin-config-table admin-route-stops">
 
                                             <table>
 

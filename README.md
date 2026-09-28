@@ -97,14 +97,20 @@ The recommended fleet for a two-terminal service is one operating trainset and o
 
 Run these files on a fresh PostgreSQL database:
 
-```sql
-database/schema.sql
-database/seed-local.sql
+```bash
+psql "$PG_CONNECTION_STRING" -v ON_ERROR_STOP=1 \
+  -f database/schema.sql \
+  -f database/seed-local.sql \
+  -f database/required_db_features.sql
 ```
+
+The final script installs the required PostgreSQL fare function, cancellation
+procedure, and seat-overlap trigger. The in-memory application mode does not
+install or exercise these PostgreSQL objects.
 
 Additional data and maintenance scripts are also included:
 
-- `database/seed_trains.sql`: generated Bangladesh Railway train and route data. Its legacy stop distances are placeholders except for the supplied 300 km Dhaka-Rangpur correction; regenerate it only from a workbook containing verified `Distance_From_Source_KM` values.
+- `database/seed_trains.sql`: legacy generated Bangladesh Railway train and route data. Do not apply it until all stop distances are verified. The checked-in workbook lacks `Distance_From_Source_KM`; `server/generate_sql.js` refuses to generate a replacement without that source column.
 - `database/seed_running_days.sql`: running-day schedule data
 - `database/trip.sql`: fare, class, seat inventory, and trip helper data
 - `database/sql_history/`: database change history

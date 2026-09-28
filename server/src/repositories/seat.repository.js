@@ -30,6 +30,19 @@ export async function getFareRule(connection, trainId, classId) {
   return result.rows[0] || null
 }
 
+export async function calculateTicketFare(connection, {
+  tripId,
+  sourceStationId,
+  destinationStationId,
+  classId,
+}) {
+  const result = await connection.query(
+    `SELECT calculate_ticket_fare($1, $2, $3, $4) AS FARE`,
+    [tripId, sourceStationId, destinationStationId, classId]
+  )
+  return result.rows[0]?.FARE ?? null
+}
+
 export async function listAvailableSeats(connection, { tripId, sourceStationId, destinationStationId, classId }) {
   const segment = await getTripSegment(connection, tripId, sourceStationId, destinationStationId)
   if (!segment) return { segment: null, seats: [] }

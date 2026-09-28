@@ -29,7 +29,9 @@ export async function api(path, options={}){
   let payload = null
   try { payload = await response.json() } catch { payload = null }
   if(!response.ok){
-    const error = new Error(payload?.error || `Request failed (${response.status})`)
+    const message = payload?.error || `Request failed (${response.status})`
+    const debug = import.meta.env.DEV && payload?.debug ? `: ${payload.debug}` : ''
+    const error = new Error(`${message}${debug}`)
     error.status = response.status
     error.details = payload?.details
     throw error

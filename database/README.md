@@ -4,6 +4,18 @@ Run on a fresh PostgreSQL database in this order:
 
 1. `schema.sql`
 2. `seed-local.sql`
+3. `required_db_features.sql`
+
+For example, from the repository root:
+
+```bash
+psql "$PG_CONNECTION_STRING" -v ON_ERROR_STOP=1 -f database/schema.sql -f database/seed-local.sql -f database/required_db_features.sql
+```
+
+`required_db_features.sql` installs the `calculate_ticket_fare` function, the
+`cancel_booking_workflow` procedure, and the overlapping-seat-reservation
+trigger. These PostgreSQL objects are not loaded by the in-memory application
+mode.
 
 The schema contains the complete railway data model plus:
 
@@ -18,7 +30,7 @@ The seed data creates Suborno Express in both directions, twelve stations, three
 
 Additional scripts:
 
-- `seed_trains.sql`: expanded Bangladesh Railway train and route data
+- `seed_trains.sql`: legacy expanded route data. Do not apply until stop distances are verified; the accompanying workbook has no distance column.
 - `seed_running_days.sql`: running-day definitions
 - `trip.sql`: trip and fare helper data
 - `sql_history/`: applied schema corrections and history
