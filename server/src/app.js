@@ -8,6 +8,7 @@ import operatorRoutes from './routes/operator.routes.js'
 import bookingRoutes from './routes/booking.routes.js'
 import adminRoutes from './routes/admin.routes.js'
 import notificationRoutes from './routes/notification.routes.js'
+import chatRoutes from './routes/chat.routes.js'
 import { errorHandler, notFoundHandler } from './middleware/error.middleware.js'
 import { getDatabaseMode } from './config/database.js'
 
@@ -33,6 +34,7 @@ export function createApp() {
   app.use('/api/bookings', bookingRoutes)
   app.use('/api/admin', adminRoutes)
   app.use('/api/notifications', notificationRoutes)
+  app.use('/api/chat', chatRoutes)
 
   app.use(notFoundHandler)
   app.use(errorHandler)

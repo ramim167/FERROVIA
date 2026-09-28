@@ -50,7 +50,7 @@ export async function listAvailableSeats(connection, { tripId, sourceStationId, 
         AND $2 > SR.SOURCE_STOP_SEQUENCE
       WHERE TS.TRIP_ID = $3
         AND TS.SEAT_STATUS = 'AVAILABLE'
-        AND S.IS_ACTIVE = 1
+        AND LOWER(S.IS_ACTIVE::text) IN ('1','true','t')
         AND ($4::int IS NULL OR CT.CLASS_ID = $4::int)
       GROUP BY TS.TRIP_SEAT_ID, S.SEAT_ID, S.SEAT_NUMBER, S.SEAT_TYPE,
                C.COACH_ID, C.COACH_CODE, C.COACH_ORDER,

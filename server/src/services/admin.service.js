@@ -446,8 +446,9 @@ export async function updateRouteInfo(routeId, payload = {}) {
   }
 
 
-  const trainNumber =
-    String(payload.trainNumber || '').trim()
+  const trainNumber = payload.trainNumber == null
+    ? null
+    : String(payload.trainNumber).trim()
 
   const routeCode =
     String(payload.routeCode || '').trim()
@@ -456,7 +457,7 @@ export async function updateRouteInfo(routeId, payload = {}) {
     Number(payload.isActive)
 
 
-  if (!trainNumber) {
+  if (trainNumber !== null && !trainNumber) {
     throw badRequest('Train number is required')
   }
 

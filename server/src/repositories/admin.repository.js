@@ -14,18 +14,34 @@ export async function listRoutes(connection) {
 }
 
 export async function getRoute(connection, routeId) {
+  const hasTrainNumber = await routeHasTrainNumber(connection)
+  const trainNumberColumn = hasTrainNumber ? 'R.TRAIN_NUMBER' : 'NULL::varchar'
+  const trainNumberGroup = hasTrainNumber ? ', R.TRAIN_NUMBER' : ''
   const result = await connection.query(
-    `SELECT R.ROUTE_ID, R.TRAIN_ID, R.ROUTE_CODE, R.TRAIN_NUMBER, R.DIRECTION,
+    `SELECT R.ROUTE_ID, R.TRAIN_ID, R.ROUTE_CODE, ${trainNumberColumn} AS TRAIN_NUMBER,
+            ${hasTrainNumber ? 'TRUE' : 'FALSE'} AS HAS_TRAIN_NUMBER, R.DIRECTION,
             R.SOURCE_STATION_ID, R.DESTINATION_STATION_ID, R.IS_ACTIVE,
             MAX(GREATEST(COALESCE(RS.ARRIVAL_OFFSET_MIN,0), COALESCE(RS.DEPARTURE_OFFSET_MIN,0))) AS DURATION_MIN
        FROM ROUTES R
        JOIN ROUTE_STOPS RS ON RS.ROUTE_ID = R.ROUTE_ID
       WHERE R.ROUTE_ID = $1
-      GROUP BY R.ROUTE_ID, R.TRAIN_ID, R.ROUTE_CODE, R.TRAIN_NUMBER, R.DIRECTION,
+      GROUP BY R.ROUTE_ID, R.TRAIN_ID, R.ROUTE_CODE${trainNumberGroup}, R.DIRECTION,
                R.SOURCE_STATION_ID, R.DESTINATION_STATION_ID, R.IS_ACTIVE`,
     [routeId]
   )
   return result.rows[0] || null
+}
+
+async function routeHasTrainNumber(connection) {
+  const result = await connection.query(
+    `SELECT 1
+       FROM information_schema.columns
+      WHERE table_schema = current_schema()
+        AND table_name = 'routes'
+        AND column_name = 'train_number'
+      LIMIT 1`
+  )
+  return result.rows.length > 0
 }
 
 export async function materializeTripStops(connection, tripId) {
@@ -53,7 +69,7 @@ export async function materializeTripSeats(connection, tripId) {
        JOIN COACHES C ON C.TRAIN_ID = T.TRAIN_ID
        JOIN SEATS S ON S.COACH_ID = C.COACH_ID
       WHERE T.TRIP_ID = $1
-        AND S.IS_ACTIVE = 1`,
+        AND LOWER(S.IS_ACTIVE::text) IN ('1','true','t')`,
     [tripId]
   )
 }
@@ -120,7 +136,7 @@ export async function listTrainFormStations(connection) {
   const result = await connection.query(
     `SELECT STATION_ID, STATION_NAME, CITY, STATION_CODE
        FROM STATIONS
-      WHERE IS_ACTIVE = 1
+      WHERE LOWER(IS_ACTIVE::text) IN ('1','true','t')
       ORDER BY STATION_NAME`
   )
   return result.rows
@@ -268,6 +284,8 @@ export async function listTrainServices(connection) {
 }
 
 export async function getTrainServiceDetails(connection, trainId) {
+  const hasTrainNumber = await routeHasTrainNumber(connection)
+  const trainNumberColumn = hasTrainNumber ? 'R.TRAIN_NUMBER' : 'NULL::varchar'
   const trainResult = await connection.query(
     `SELECT
         TRAIN_ID, TRAIN_NAME, TRAIN_CODE, TRAIN_TYPE, TRAIN_STATUS, SPARE_TRIGGER_DELAY_MIN
@@ -280,7 +298,8 @@ export async function getTrainServiceDetails(connection, trainId) {
 
   const routesResult = await connection.query(
     `SELECT
-        R.ROUTE_ID, R.ROUTE_CODE, R.TRAIN_NUMBER, R.DIRECTION,
+        R.ROUTE_ID, R.ROUTE_CODE, ${trainNumberColumn} AS TRAIN_NUMBER,
+        ${hasTrainNumber ? 'TRUE' : 'FALSE'} AS HAS_TRAIN_NUMBER, R.DIRECTION,
         R.SOURCE_STATION_ID, SRC.STATION_NAME AS SOURCE_STATION,
         R.DESTINATION_STATION_ID, DST.STATION_NAME AS DESTINATION_STATION, R.IS_ACTIVE
      FROM ROUTES R
@@ -336,7 +355,7 @@ export async function getTrainServiceDetails(connection, trainId) {
   const coachesResult = await connection.query(
     `SELECT
         C.COACH_ID, C.CLASS_ID, CT.CLASS_NAME, CT.CLASS_CODE, C.COACH_CODE, C.COACH_ORDER,
-        COUNT(CASE WHEN S.IS_ACTIVE = 1 THEN 1 END) AS SEAT_COUNT
+        COUNT(CASE WHEN LOWER(S.IS_ACTIVE::text) IN ('1','true','t') THEN 1 END) AS SEAT_COUNT
      FROM COACHES C
      JOIN CLASS_TYPES CT ON CT.CLASS_ID = C.CLASS_ID
      LEFT JOIN SEATS S ON S.COACH_ID = C.COACH_ID
@@ -378,11 +397,19 @@ export async function updateTrainBasicInfo(connection, {
 export async function updateRouteBasicInfo(connection, {
   routeId, trainNumber, routeCode, isActive,
 }) {
-  const result = await connection.query(
-    `UPDATE ROUTES
-        SET TRAIN_NUMBER = $2, ROUTE_CODE = $3, IS_ACTIVE = $4
-      WHERE ROUTE_ID = $1`,
-    [routeId, trainNumber, routeCode, isActive]
-  )
+  const hasTrainNumber = await routeHasTrainNumber(connection)
+  const result = hasTrainNumber
+    ? await connection.query(
+      `UPDATE ROUTES
+          SET TRAIN_NUMBER = $2, ROUTE_CODE = $3, IS_ACTIVE = $4
+        WHERE ROUTE_ID = $1`,
+      [routeId, trainNumber, routeCode, isActive]
+    )
+    : await connection.query(
+      `UPDATE ROUTES
+          SET ROUTE_CODE = $2, IS_ACTIVE = $3
+        WHERE ROUTE_ID = $1`,
+      [routeId, routeCode, isActive]
+    )
   return result.rowCount
 }

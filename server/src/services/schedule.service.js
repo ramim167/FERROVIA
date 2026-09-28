@@ -64,7 +64,7 @@ export async function ensureUpcomingTrips(days = generationDays()) {
                   SELECT r.ROUTE_ID, r.TRAIN_ID, rd.DEPARTURE_MINUTE
                   FROM ROUTES r
                   JOIN TRAIN_RUNNING_DAYS rd ON r.ROUTE_ID = rd.ROUTE_ID
-                  WHERE r.IS_ACTIVE = 1
+                  WHERE LOWER(r.IS_ACTIVE::text) IN ('1','true','t')
                     AND rd.DAY_CODE = v_day_code
               ) LOOP
                   v_sched_dep := v_date + (v_route.DEPARTURE_MINUTE || ' minutes')::INTERVAL;
@@ -127,7 +127,7 @@ export async function ensureUpcomingTrips(days = generationDays()) {
                   FROM SEATS s
                   JOIN COACHES c ON c.COACH_ID = s.COACH_ID
                   WHERE c.TRAIN_ID = v_route.TRAIN_ID
-                    AND s.IS_ACTIVE = 1
+                    AND LOWER(s.IS_ACTIVE::text) IN ('1','true','t')
                   ON CONFLICT (TRIP_ID, SEAT_ID) DO NOTHING;
               END LOOP;
           END LOOP;

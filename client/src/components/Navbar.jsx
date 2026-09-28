@@ -8,6 +8,8 @@ export default function Navbar({
   onAuth,
   onLogout,
   notificationCount = 0,
+  theme = "light",
+  onToggleTheme,
 }) {
   const [open, setOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -119,6 +121,14 @@ export default function Navbar({
         </nav>
         <div className="nav-actions">
           <button
+            className="icon-button theme-toggle"
+            title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+            onClick={onToggleTheme}
+            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+          >
+            <Icon name={theme === "dark" ? "sun" : "moon"} size={19} />
+          </button>
+          <button
             className="icon-button notification"
             title="Notifications"
             onClick={() => (user ? go("notifications") : onAuth())}
@@ -152,6 +162,10 @@ export default function Navbar({
                 </button>
                 <button onClick={() => go("notifications")}>
                   <Icon name="bell" size={17} /> Notifications
+                </button>
+                <button onClick={onToggleTheme}>
+                  <Icon name={theme === "dark" ? "sun" : "moon"} size={17} />
+                  {theme === "dark" ? "Light mode" : "Dark mode"}
                 </button>
                 {user.role === "OPERATOR" && (
                   <button onClick={() => go("operator")}>

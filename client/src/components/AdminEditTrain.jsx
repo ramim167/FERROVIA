@@ -565,8 +565,7 @@ export default function AdminEditTrain({
                                     </h2>
 
                                     <p>
-                                        Train No: {route.train_number || '—'}
-                                        {' • '}
+                                        {route.has_train_number && <>Train No: {route.train_number || '—'}{' • '}</>}
                                         Route Code: {route.route_code}
                                         {' • '}
                                         {Number(route.is_active) === 1
@@ -769,6 +768,7 @@ export default function AdminEditTrain({
 }
 
 function RouteEditor({ route, saving, onSave }) {
+    const supportsTrainNumber = route.has_train_number !== false
     const [form, setForm] = useState({
         trainNumber: route.train_number || '',
         routeCode: route.route_code || '',
@@ -781,12 +781,12 @@ function RouteEditor({ route, saving, onSave }) {
             routeCode: route.route_code || '',
             isActive: Number(route.is_active) === 1 ? '1' : '0',
         })
-    }, [route.train_number, route.route_code, route.is_active])
+    }, [route.has_train_number, route.train_number, route.route_code, route.is_active])
 
     const submit = event => {
         event.preventDefault()
         onSave(route.route_id, {
-            trainNumber: form.trainNumber,
+            ...(supportsTrainNumber ? { trainNumber: form.trainNumber } : {}),
             routeCode: form.routeCode,
             isActive: Number(form.isActive),
         })
@@ -794,14 +794,16 @@ function RouteEditor({ route, saving, onSave }) {
 
     return (
         <form className="admin-route-editor" onSubmit={submit}>
-            <label>
-                Train number
-                <input
-                    required
-                    value={form.trainNumber}
-                    onChange={event => setForm({ ...form, trainNumber: event.target.value })}
-                />
-            </label>
+            {supportsTrainNumber && (
+                <label>
+                    Train number
+                    <input
+                        required
+                        value={form.trainNumber}
+                        onChange={event => setForm({ ...form, trainNumber: event.target.value })}
+                    />
+                </label>
+            )}
             <label>
                 Route code
                 <input

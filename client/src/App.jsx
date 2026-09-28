@@ -7,6 +7,7 @@ import DatePicker from "./components/DatePicker";
 import AdminTrainServiceForm from "./components/AdminTrainServiceForm";
 import AdminEditTrain from './components/AdminEditTrain'
 import AdminAssignTrip from './components/AdminAssignTrip'
+import AiAssistant from "./components/AiAssistant";
 import { Icon } from "./components/Icons";
 import heroTrain from "./assets/train-hero-updated.png";
 import { api, clearSession, getStoredToken, storeSession } from "./lib/api";
@@ -168,11 +169,18 @@ function App() {
         JSON.parse(localStorage.getItem("rail-favorites") || "[]")
     );
     const [detailTrain, setDetailTrain] = useState(null);
+    const [theme, setTheme] = useState(() =>
+        localStorage.getItem("ferrovia-theme") || "light"
+    );
 
     useEffect(
         () => localStorage.setItem("rail-favorites", JSON.stringify(favorites)),
         [favorites]
     );
+    useEffect(() => {
+        localStorage.setItem("ferrovia-theme", theme);
+        document.documentElement.dataset.theme = theme;
+    }, [theme]);
     useEffect(() => {
         if (toast) {
             const t = setTimeout(() => setToast(""), 3000);
@@ -473,9 +481,11 @@ function App() {
         setAuthResume(null);
         if (resume === "payment") await createPendingBooking(session.token);
     };
+    const toggleTheme = () =>
+        setTheme((value) => (value === "dark" ? "light" : "dark"));
 
     return (
-        <div id="root" className="app">
+        <div id="root" className="app" data-theme={theme}>
             <div className="ambient ambient-one"></div>
             <div className="ambient ambient-two"></div>
             <Navbar
@@ -485,6 +495,8 @@ function App() {
                 onAuth={() => setAuthOpen(true)}
                 onLogout={logout}
                 notificationCount={unreadCount}
+                theme={theme}
+                onToggleTheme={toggleTheme}
             />
             {toast && (
                 <div className="toast">
@@ -637,6 +649,7 @@ function App() {
                 )}
                 {page === "support" && <Support setToast={setToast} />}
             </div>
+            <AiAssistant />
             <Footer navigate={navigate} />
             {authOpen && (
                 <AuthModal

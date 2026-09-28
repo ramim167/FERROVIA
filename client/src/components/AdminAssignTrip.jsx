@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import DatePicker from './DatePicker'
 import { Icon } from './Icons'
 import { api } from '../lib/api'
@@ -383,16 +383,31 @@ export default function AdminAssignTrip({ user, handleError, setToast }) {
 }
 
 function TimeFilter({ value, onChange, ariaLabel }) {
+  const inputRef = useRef(null)
+
   return (
     <div className="assignment-time-filter" title="Show trips departing at or after this time">
       <Icon name="clock" size={16} />
       <span>From</span>
       <input
+        ref={inputRef}
         type="time"
         value={value}
         aria-label={ariaLabel}
         onChange={event => onChange(event.target.value)}
       />
+      <button
+        type="button"
+        className="time-picker-button"
+        aria-label="Choose departure time"
+        title="Choose departure time"
+        onClick={() => {
+          if (inputRef.current?.showPicker) inputRef.current.showPicker()
+          else inputRef.current?.focus()
+        }}
+      >
+        <Icon name="clock" size={16} />
+      </button>
       {value && (
         <button
           type="button"

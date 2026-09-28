@@ -67,14 +67,11 @@ function Autocomplete({ options, value, onChange, placeholder }) {
             right: 0,
             maxHeight: '200px',
             overflowY: 'auto',
-            background: 'white',
             zIndex: 100,
             listStyle: 'none',
             padding: 0,
             margin: '5px 0 0 0',
-            boxShadow: '0 4px 10px rgba(0,0,0,0.1)',
             borderRadius: '6px',
-            border: '1px solid #eee'
           }}
         >
           {filteredOptions.map(opt => (
@@ -90,11 +87,7 @@ function Autocomplete({ options, value, onChange, placeholder }) {
               style={{
                 padding: '10px 15px',
                 cursor: 'pointer',
-                borderBottom: '1px solid #f5f5f5',
-                color: '#333'
               }}
-              onMouseEnter={(e) => e.target.style.backgroundColor = '#f4f6f8'}
-              onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
             >
               {opt}
             </li>
