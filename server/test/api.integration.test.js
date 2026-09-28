@@ -11,6 +11,8 @@ let server
 let passengerToken
 let operatorToken
 let adminToken
+let pendingOperatorId
+let pendingOperatorEmail
 let searchedTrip
 let selectedClass
 let selectedSeat
@@ -103,7 +105,18 @@ test('300 km reference fares match Shovan, Snigdha and AC Berth policy', async (
   )
 })
 
-test('public registration always creates a passenger account', async () => {
+test('cancellation refund tiers respect booking age and departure cutoff', async () => {
+  const { cancellationRefundPercent } = await import('../src/services/booking.service.js')
+
+  assert.equal(cancellationRefundPercent(24, 25), 70)
+  assert.equal(cancellationRefundPercent(24.01, 25), 50)
+  assert.equal(cancellationRefundPercent(72, 25), 50)
+  assert.equal(cancellationRefundPercent(72.01, 25), 20)
+  assert.equal(cancellationRefundPercent(1, 24), 0)
+  assert.equal(cancellationRefundPercent(80, 24), 0)
+})
+
+test('public registration supports users and prevents admin role escalation', async () => {
   const session = await request('/auth/register', {
     method: 'POST',
     body: {
@@ -111,7 +124,7 @@ test('public registration always creates a passenger account', async () => {
       email: 'passenger.test@ferrovia.local',
       phone: '01700000009',
       password: 'Passenger123!',
-      role: 'ADMIN',
+      role: 'PASSENGER',
     },
   })
 
@@ -119,6 +132,39 @@ test('public registration always creates a passenger account', async () => {
   passengerToken = session.token
   const me = await request('/auth/me', { token: passengerToken })
   assert.equal(me.email, 'passenger.test@ferrovia.local')
+
+  const adminRegistration = await requestRaw('/auth/register', {
+    method: 'POST',
+    body: {
+      fullName: 'Unprivileged Admin',
+      email: 'not-admin@ferrovia.local',
+      password: 'Passenger123!',
+      role: 'ADMIN',
+    },
+  })
+  assert.equal(adminRegistration.status, 400)
+
+  const pendingOperator = await request('/auth/register', {
+    method: 'POST',
+    body: {
+      fullName: 'Pending Operator',
+      email: 'operator.pending@ferrovia.local',
+      password: 'Operator123!',
+      role: 'OPERATOR',
+    },
+  })
+  pendingOperatorId = pendingOperator.user.user_id
+  pendingOperatorEmail = pendingOperator.user.email
+  assert.equal(pendingOperator.user.role, 'OPERATOR')
+  assert.equal(pendingOperator.user.account_status, 'PENDING')
+  assert.equal(pendingOperator.token, undefined)
+
+  const pendingLogin = await requestRaw('/auth/login', {
+    method: 'POST',
+    body: { email: pendingOperatorEmail, password: 'Operator123!' },
+  })
+  assert.equal(pendingLogin.status, 403)
+  assert.equal(pendingLogin.payload.error, 'Operator account is waiting for admin approval')
 })
 
 test('seeded operator and admin accounts authenticate', async () => {
@@ -135,6 +181,35 @@ test('seeded operator and admin accounts authenticate', async () => {
   assert.equal(admin.user.role, 'ADMIN')
   operatorToken = operator.token
   adminToken = admin.token
+
+  const passengerQueueAccess = await requestRaw('/admin/operators/pending', {
+    token: passengerToken,
+  })
+  assert.equal(passengerQueueAccess.status, 403)
+
+  const pendingOperators = await request('/admin/operators/pending', { token: adminToken })
+  const pendingOperator = pendingOperators.find(item => item.email === pendingOperatorEmail)
+  assert.ok(pendingOperator)
+  assert.equal(pendingOperator.account_status, 'PENDING')
+
+  const approved = await request(`/admin/operators/${pendingOperator.user_id}/approve`, {
+    method: 'PATCH',
+    token: adminToken,
+  })
+  assert.equal(approved.account_status, 'ACTIVE')
+
+  const duplicateApproval = await requestRaw(`/admin/operators/${pendingOperator.user_id}/approve`, {
+    method: 'PATCH',
+    token: adminToken,
+  })
+  assert.equal(duplicateApproval.status, 409)
+
+  const approvedLogin = await request('/auth/login', {
+    method: 'POST',
+    body: { email: pendingOperatorEmail, password: 'Operator123!' },
+  })
+  assert.equal(approvedLogin.user.role, 'OPERATOR')
+  assert.equal(approvedLogin.user.account_status, 'ACTIVE')
 })
 
 test('passenger can search, reserve, pay, view and cancel a ticket', async () => {
@@ -194,8 +269,62 @@ test('passenger can search, reserve, pay, view and cancel a ticket', async () =>
     method: 'POST',
     token: passengerToken,
   })
-  assert.equal(cancelled.status, 'cancelled')
+  assert.equal(cancelled.status, 'cancellation_requested')
   assert.equal(cancelled.refundRequested, true)
+
+  let myBookings = await request('/bookings/mine', { token: passengerToken })
+  let currentBooking = myBookings.find(item => item.pnr_number === bookingPnr)
+  assert.equal(currentBooking.booking_status, 'CONFIRMED')
+  assert.equal(currentBooking.cancellation_request_status, 'REQUESTED')
+
+  const passengerAdminRequest = await requestRaw('/admin/cancellation-requests', {
+    token: passengerToken,
+  })
+  assert.equal(passengerAdminRequest.status, 403)
+
+  let requests = await request('/admin/cancellation-requests', { token: adminToken })
+  let cancellationRequest = requests.find(item => item.pnr_number === bookingPnr)
+  assert.ok(cancellationRequest)
+
+  const rejected = await request(`/admin/cancellation-requests/${cancellationRequest.cancellation_request_id}`, {
+    method: 'PATCH',
+    token: adminToken,
+    body: { decision: 'REJECT' },
+  })
+  assert.equal(rejected.status, 'REJECTED')
+
+  myBookings = await request('/bookings/mine', { token: passengerToken })
+  currentBooking = myBookings.find(item => item.pnr_number === bookingPnr)
+  assert.equal(currentBooking.booking_status, 'CONFIRMED')
+  assert.equal(currentBooking.cancellation_request_status, 'REJECTED')
+
+  const retry = await request(`/bookings/${bookingPnr}/cancel`, {
+    method: 'POST',
+    token: passengerToken,
+  })
+  assert.equal(retry.status, 'cancellation_requested')
+
+  requests = await request('/admin/cancellation-requests', { token: adminToken })
+  cancellationRequest = requests.find(item => item.pnr_number === bookingPnr)
+  assert.ok(cancellationRequest)
+
+  const approved = await request(`/admin/cancellation-requests/${cancellationRequest.cancellation_request_id}`, {
+    method: 'PATCH',
+    token: adminToken,
+    body: { decision: 'APPROVE' },
+  })
+  assert.equal(approved.status, 'APPROVED')
+
+  myBookings = await request('/bookings/mine', { token: passengerToken })
+  currentBooking = myBookings.find(item => item.pnr_number === bookingPnr)
+  assert.equal(currentBooking.booking_status, 'CANCELLED')
+  assert.equal(currentBooking.cancellation_request_status, 'APPROVED')
+
+  const details = await request(`/bookings/${bookingPnr}`, { token: passengerToken })
+  if (Number(approved.refund_amount) > 0) {
+    assert.equal(details.passengers[0].refund_status, 'PROCESSING')
+    assert.ok(Number(details.passengers[0].refund_amount) > 0)
+  }
 })
 
 test('live status and stop timeline endpoints return the searched trip', async () => {

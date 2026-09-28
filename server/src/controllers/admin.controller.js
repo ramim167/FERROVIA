@@ -53,6 +53,15 @@ export async function operators(_req, res) {
   res.json({ success: true, data: await adminService.operators() })
 }
 
+export async function pendingOperators(_req, res) {
+  res.json({ success: true, data: await adminService.pendingOperators() })
+}
+
+export async function approveOperator(req, res) {
+  const data = await adminService.approveOperator(Number(req.params.userId))
+  res.json({ success: true, data })
+}
+
 export async function trips(req, res) {
   res.json({ success: true, data: await adminService.trips(req.query.date || null) })
 }
@@ -60,6 +69,19 @@ export async function trips(req, res) {
 export async function trainsets(req, res) {
   const trainId = req.query.trainId ? Number(req.query.trainId) : null
   res.json({ success: true, data: await adminService.trainsets(trainId) })
+}
+
+export async function cancellationRequests(_req, res) {
+  res.json({ success: true, data: await adminService.cancellationRequests() })
+}
+
+export async function decideCancellation(req, res) {
+  const data = await adminService.decideCancellation(
+    Number(req.params.requestId),
+    req.user.userId,
+    req.body.decision
+  )
+  res.json({ success: true, data })
 }
 
 export async function rejectTripIssue(_req, _res) {

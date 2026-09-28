@@ -22,16 +22,23 @@ import {
   verifyPassword
 } from '../utils/authCrypto.js'
 
-export async function registerPassenger({
+export async function registerAccount({
   fullName,
   email,
   phone,
-  password
+  password,
+  role = 'PASSENGER',
 }) {
   if (!fullName || !email || !password)
     throw badRequest('fullName, email and password are required')
   if (password.length < 8)
     throw badRequest('Password must be at least 8 characters')
+
+  const normalizedRole = String(role).toUpperCase()
+  if (!['PASSENGER', 'OPERATOR'].includes(normalizedRole)) {
+    throw badRequest('role must be USER or OPERATOR')
+  }
+  const accountStatus = normalizedRole === 'OPERATOR' ? 'PENDING' : 'ACTIVE'
 
   return withTransaction(async (connection) => {
     const existing = await findUserByEmail(connection, email)
@@ -43,9 +50,17 @@ export async function registerPassenger({
       email,
       phone,
       passwordHash,
-      role: 'PASSENGER'
+      role: normalizedRole,
+      accountStatus,
     })
     const user = await findUserById(connection, userId)
+    if (accountStatus === 'PENDING') {
+      return {
+        user: lowerKeys(user),
+        pendingApproval: true,
+        message: 'Operator account is waiting for admin approval.',
+      }
+    }
     return {
       user: lowerKeys(user),
       token: issueToken(user)
@@ -65,9 +80,13 @@ export async function login({
     // Postgres এর lowercase ডাটা হ্যান্ডেল করার লজিক
     const passHash = user?.password_hash || user?.PASSWORD_HASH;
     const status = user?.account_status || user?.ACCOUNT_STATUS;
+    const role = user?.role || user?.ROLE;
 
     if (!user || !(await verifyPassword(password, passHash))) {
       throw unauthorized('Invalid email or password')
+    }
+    if (role === 'OPERATOR' && status === 'PENDING') {
+      throw forbidden('Operator account is waiting for admin approval')
     }
     if (status !== 'ACTIVE') throw forbidden('This account is not active')
 

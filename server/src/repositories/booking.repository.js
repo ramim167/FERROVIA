@@ -135,7 +135,7 @@ export async function getBookingByPnr(connection, pnr, userId = null) {
 
 export async function listUserBookings(connection, userId) {
   const result = await connection.query(
-    `SELECT B.PNR_NUMBER, B.BOOKING_TIME, B.TOTAL_FARE, B.BOOKING_STATUS,
+    `SELECT B.BOOKING_ID, B.PNR_NUMBER, B.BOOKING_TIME, B.TOTAL_FARE, B.BOOKING_STATUS,
             TR.TRAIN_NAME, R.DIRECTION,
             SRC.STATION_NAME AS SOURCE_STATION, DST.STATION_NAME AS DESTINATION_STATION,
             T.SCHEDULED_DEPARTURE, T.SCHEDULED_ARRIVAL
@@ -149,7 +149,24 @@ export async function listUserBookings(connection, userId) {
       ORDER BY T.SCHEDULED_DEPARTURE DESC`,
     [userId]
   )
-  return result.rows
+
+  const cancellationRequests = await connection.query(
+    `SELECT CR.BOOKING_ID, CR.REQUEST_STATUS
+       FROM CANCELLATION_REQUESTS CR
+       JOIN BOOKINGS B ON B.BOOKING_ID = CR.BOOKING_ID
+      WHERE B.USER_ID = $1
+      ORDER BY CR.REQUESTED_AT, CR.CANCELLATION_REQUEST_ID`,
+    [userId]
+  )
+  const statusByBooking = new Map()
+  for (const request of cancellationRequests.rows) {
+    statusByBooking.set(Number(request.BOOKING_ID), request.REQUEST_STATUS)
+  }
+
+  return result.rows.map(booking => ({
+    ...booking,
+    CANCELLATION_REQUEST_STATUS: statusByBooking.get(Number(booking.BOOKING_ID)) || null,
+  }))
 }
 
 export async function cancelBooking(connection, bookingId) {

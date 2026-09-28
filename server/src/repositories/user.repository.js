@@ -20,13 +20,13 @@ export async function findUserById(connection, userId) {
 
 export async function createPassenger(
   connection,
-  { fullName, email, phone, passwordHash, role }
+  { fullName, email, phone, passwordHash, role, accountStatus = 'ACTIVE' }
 ) {
   const result = await connection.query(
-    `INSERT INTO USERS (FULL_NAME, EMAIL, PHONE, PASSWORD_HASH, ROLE)
-     VALUES ($1, $2, $3, $4, $5)
+    `INSERT INTO USERS (FULL_NAME, EMAIL, PHONE, PASSWORD_HASH, ROLE, ACCOUNT_STATUS)
+     VALUES ($1, $2, $3, $4, $5, $6)
      RETURNING USER_ID`,
-    [fullName, email, phone || null, passwordHash, role]
+    [fullName, email, phone || null, passwordHash, role, accountStatus]
   )
   return result.rows[0].user_id || result.rows[0].USER_ID
 }

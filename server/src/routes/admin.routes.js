@@ -2,8 +2,12 @@ import { Router } from 'express'
 import {
   assignOperator,
   assignTrainset,
+  approveOperator,
+  cancellationRequests,
+  decideCancellation,
   rejectTripIssue,
   operators,
+  pendingOperators,
   routes,
   trainsets,
   trips,
@@ -21,8 +25,12 @@ const router = Router()
 router.use(requireAuth, requireRole('ADMIN'))
 router.get('/routes', asyncHandler(routes))
 router.get('/operators', asyncHandler(operators))
+router.get('/operators/pending', asyncHandler(pendingOperators))
+router.patch('/operators/:userId/approve', asyncHandler(approveOperator))
 router.get('/trips', asyncHandler(trips))
 router.get('/trainsets', asyncHandler(trainsets))
+router.get('/cancellation-requests', asyncHandler(cancellationRequests))
+router.patch('/cancellation-requests/:requestId', asyncHandler(decideCancellation))
 router.patch('/routes/:routeId', asyncHandler(updateRouteInfo))
 router.get('/train-services', asyncHandler(trainServices))
 router.get('/train-services/:trainId', asyncHandler(trainServiceDetails))

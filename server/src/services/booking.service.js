@@ -1,7 +1,7 @@
 import crypto from 'node:crypto'
 import { withConnection, withTransaction } from '../config/database.js'
 import {
-  cancelBookingWorkflow,
+  cancelBooking,
   confirmBookingAndReservations,
   createBooking,
   createHeldReservation,
@@ -14,6 +14,11 @@ import {
   getHeldReservations,
   listUserBookings,
 } from '../repositories/booking.repository.js'
+import {
+  createCancellationRequest,
+  getCancellationTiming,
+  hasPendingCancellationRequest,
+} from '../repositories/cancellation.repository.js'
 import { calculateTicketFare, getFareRule, getTripSegment, hasOverlap, listAvailableSeats, lockTripSeat } from '../repositories/seat.repository.js'
 import { badRequest, conflict, notFound } from '../utils/httpError.js'
 import { lowerKeys } from '../utils/serializers.js'
@@ -35,6 +40,13 @@ export function fareForSegment(segment, fareRule) {
     (Number(fareRule.BASE_FARE) + distance * Number(fareRule.RATE_PER_KM)) * 100
   ) / 100
   return Math.ceil(calculatedFare / 10) * 10
+}
+
+export function cancellationRefundPercent(hoursSinceBooking, hoursUntilDeparture) {
+  if (Number(hoursUntilDeparture) <= 24) return 0
+  if (Number(hoursSinceBooking) <= 24) return 70
+  if (Number(hoursSinceBooking) <= 72) return 50
+  return 20
 }
 
 function isMissingDatabaseFunction(error) {
@@ -299,17 +311,52 @@ export async function cancelUserBooking(userId, pnr) {
     if (!['PENDING', 'CONFIRMED'].includes(booking.BOOKING_STATUS)) {
       throw badRequest(`Booking is ${booking.BOOKING_STATUS.toLowerCase()}`)
     }
-    const wasConfirmed = booking.BOOKING_STATUS === 'CONFIRMED'
-    await cancelBookingWorkflow(connection, booking.BOOKING_ID)
+
+    if (booking.BOOKING_STATUS === 'PENDING') {
+      await cancelBooking(connection, booking.BOOKING_ID)
+      await createNotification(connection, {
+        userId,
+        bookingId: booking.BOOKING_ID,
+        tripId: booking.TRIP_ID,
+        title: 'Booking cancelled',
+        message: `Pending booking ${pnr} was cancelled and its seat hold was released.`,
+      })
+      return { pnr, status: 'cancelled', refundRequested: false }
+    }
+
+    if (await hasPendingCancellationRequest(connection, booking.BOOKING_ID)) {
+      throw conflict('A cancellation request is already awaiting admin review')
+    }
+
+    const timing = await getCancellationTiming(connection, booking.BOOKING_ID)
+    if (!timing) throw notFound('Booking trip not found')
+
+    const refundPercent = cancellationRefundPercent(
+      timing.HOURS_SINCE_BOOKING,
+      timing.HOURS_UNTIL_DEPARTURE
+    )
+    const request = await createCancellationRequest(connection, {
+      bookingId: booking.BOOKING_ID,
+      userId,
+      refundPercent,
+    })
+    if (!request) throw conflict('No confirmed tickets are available to cancel')
+
     await createNotification(connection, {
       userId,
       bookingId: booking.BOOKING_ID,
       tripId: booking.TRIP_ID,
-      title: 'Booking cancelled',
-      message: wasConfirmed
-        ? `Booking ${pnr} was cancelled. A refund request has been created for each issued ticket.`
-        : `Pending booking ${pnr} was cancelled and its seat hold was released.`,
+      title: 'Cancellation requested',
+      message: `Cancellation request for ${pnr} is awaiting admin review. Estimated refund: ৳${request.REFUND_AMOUNT}.`,
     })
-    return { pnr, status: 'cancelled', refundRequested: wasConfirmed }
+
+    return {
+      pnr,
+      status: 'cancellation_requested',
+      refundRequested: true,
+      cancellationRequestId: request.CANCELLATION_REQUEST_ID,
+      refundPercent: Number(request.REFUND_PERCENT),
+      refundAmount: Number(request.REFUND_AMOUNT),
+    }
   })
 }

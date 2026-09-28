@@ -24,7 +24,17 @@ import {
   createSeatDefinition,
   updateTrainBasicInfo,
   updateRouteBasicInfo,
+  listPendingOperators,
+  approvePendingOperator,
 } from '../repositories/admin.repository.js'
+import { cancelBooking, createNotification } from '../repositories/booking.repository.js'
+import {
+  createApprovedRefunds,
+  decideCancellationRequest,
+  getCancellationBookingForUpdate,
+  getCancellationRequestForUpdate,
+  listPendingCancellationRequests,
+} from '../repositories/cancellation.repository.js'
 import {
   cancelAssignment,
   createAssignment,
@@ -511,12 +521,91 @@ export async function operators() {
   return withConnection(async (connection) => lowerKeys(await listOperators(connection)))
 }
 
+export async function pendingOperators() {
+  return withConnection(async connection =>
+    lowerKeys(await listPendingOperators(connection))
+  )
+}
+
+export async function approveOperator(userId) {
+  const normalizedUserId = Number(userId)
+  if (!normalizedUserId) throw badRequest('A valid operator account ID is required')
+
+  return withTransaction(async connection => {
+    const operator = await approvePendingOperator(connection, normalizedUserId)
+    if (!operator) throw conflict('Operator account is not awaiting approval')
+    return lowerKeys(operator)
+  })
+}
+
 export async function trips(date) {
   return withConnection(async (connection) => lowerKeys(await listAdminTrips(connection, date || null)))
 }
 
 export async function trainsets(trainId) {
   return withConnection(async (connection) => lowerKeys(await listTrainsets(connection, trainId || null)))
+}
+
+export async function cancellationRequests() {
+  return withConnection(async connection =>
+    lowerKeys(await listPendingCancellationRequests(connection))
+  )
+}
+
+export async function decideCancellation(requestId, adminUserId, decision) {
+  const normalizedRequestId = Number(requestId)
+  const normalizedDecision = String(decision || '').toUpperCase()
+  if (!normalizedRequestId) throw badRequest('A valid cancellation request ID is required')
+  if (!['APPROVE', 'REJECT'].includes(normalizedDecision)) {
+    throw badRequest('Decision must be APPROVE or REJECT')
+  }
+
+  return withTransaction(async connection => {
+    const request = await getCancellationRequestForUpdate(connection, normalizedRequestId)
+    if (!request) throw notFound('Cancellation request not found')
+    if (request.REQUEST_STATUS !== 'REQUESTED') {
+      throw conflict('Cancellation request has already been reviewed')
+    }
+
+    const booking = await getCancellationBookingForUpdate(connection, request.BOOKING_ID)
+    if (!booking) throw notFound('Booking not found')
+    if (booking.BOOKING_STATUS !== 'CONFIRMED') {
+      throw conflict('Booking is no longer eligible for cancellation review')
+    }
+
+    const approved = normalizedDecision === 'APPROVE'
+    if (approved) {
+      await createApprovedRefunds(connection, normalizedRequestId)
+      await cancelBooking(connection, request.BOOKING_ID)
+    }
+
+    const status = approved ? 'APPROVED' : 'REJECTED'
+    const updated = await decideCancellationRequest(connection, {
+      requestId: normalizedRequestId,
+      adminUserId,
+      status,
+    })
+    if (!updated) throw conflict('Cancellation request has already been reviewed')
+
+    await createNotification(connection, {
+      userId: request.REQUESTED_BY,
+      bookingId: request.BOOKING_ID,
+      tripId: booking.TRIP_ID,
+      title: approved ? 'Cancellation approved' : 'Cancellation declined',
+      message: approved
+        ? Number(request.REFUND_AMOUNT) > 0
+          ? `Cancellation for ${booking.PNR_NUMBER} was approved. Refund of ৳${request.REFUND_AMOUNT} is being processed.`
+          : `Cancellation for ${booking.PNR_NUMBER} was approved. This request is not eligible for a refund.`
+        : `Cancellation for ${booking.PNR_NUMBER} was declined. Your booking remains confirmed.`,
+    })
+
+    return lowerKeys({
+      cancellationRequestId: normalizedRequestId,
+      pnr: booking.PNR_NUMBER,
+      status,
+      refundAmount: request.REFUND_AMOUNT,
+    })
+  })
 }
 
 export async function setOperator(tripId, operatorUserId) {

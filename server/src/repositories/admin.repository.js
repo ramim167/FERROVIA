@@ -100,6 +100,30 @@ export async function listOperators(connection) {
   return result.rows
 }
 
+export async function listPendingOperators(connection) {
+  const result = await connection.query(
+    `SELECT USER_ID, FULL_NAME, EMAIL, PHONE, ROLE, ACCOUNT_STATUS, CREATED_AT
+       FROM USERS
+      WHERE ROLE = 'OPERATOR'
+        AND ACCOUNT_STATUS = 'PENDING'
+      ORDER BY CREATED_AT, USER_ID`
+  )
+  return result.rows
+}
+
+export async function approvePendingOperator(connection, userId) {
+  const result = await connection.query(
+    `UPDATE USERS
+        SET ACCOUNT_STATUS = 'ACTIVE', UPDATED_AT = CURRENT_TIMESTAMP
+      WHERE USER_ID = $1
+        AND ROLE = 'OPERATOR'
+        AND ACCOUNT_STATUS = 'PENDING'
+      RETURNING USER_ID, FULL_NAME, EMAIL, PHONE, ROLE, ACCOUNT_STATUS, CREATED_AT`,
+    [userId]
+  )
+  return result.rows[0] || null
+}
+
 export async function listAdminTrips(connection, date = null) {
   const result = await connection.query(
     `SELECT T.TRIP_ID, T.JOURNEY_DATE, T.SCHEDULED_DEPARTURE, T.SCHEDULED_ARRIVAL,

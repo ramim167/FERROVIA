@@ -114,6 +114,24 @@ export default function Navbar({
                     <Icon name="clock" size={17} />
                     <span>Trip &amp; Trainset Assignments</span>
                   </button>
+                  <button
+                    onClick={() => {
+                      go("admin-cancellations");
+                      setAdminMenuOpen(false);
+                    }}
+                  >
+                    <Icon name="ticket" size={17} />
+                    <span>Cancellation Requests</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      go("admin-operator-approvals");
+                      setAdminMenuOpen(false);
+                    }}
+                  >
+                    <Icon name="user" size={17} />
+                    <span>Operator Approvals</span>
+                  </button>
                 </div>
               )}
             </div>

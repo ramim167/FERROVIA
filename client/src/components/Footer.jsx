@@ -41,7 +41,6 @@ export default function Footer({navigate}){
       <div>
         <b>Contact</b>
         <span>☎ 16318</span>
-        <span>✉ support@ferrovia.local</span>
         <span>Dhaka, Bangladesh</span>
       </div>
     </div>

@@ -17,6 +17,14 @@ psql "$PG_CONNECTION_STRING" -v ON_ERROR_STOP=1 -f database/schema.sql -f databa
 trigger. These PostgreSQL objects are not loaded by the in-memory application
 mode.
 
+For an existing PostgreSQL database, apply
+`sql_history/004_booking_cancellation_requests.sql` before starting the updated
+API. It adds the request-review table used by passenger cancellation requests.
+
+Apply `sql_history/005_operator_approval_status.sql` to existing databases
+before enabling Operator registration. It adds the `PENDING` user status used
+until an administrator approves an operator account.
+
 The schema contains the complete railway data model plus:
 
 - `VW_LIVE_TRAIN_STATUS`

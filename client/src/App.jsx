@@ -7,6 +7,8 @@ import DatePicker from "./components/DatePicker";
 import AdminTrainServiceForm from "./components/AdminTrainServiceForm";
 import AdminEditTrain from './components/AdminEditTrain'
 import AdminAssignTrip from './components/AdminAssignTrip'
+import AdminCancellationRequests from './components/AdminCancellationRequests'
+import AdminOperatorApprovals from './components/AdminOperatorApprovals'
 import AiAssistant from "./components/AiAssistant";
 import { Icon } from "./components/Icons";
 import heroTrain from "./assets/train-hero-updated.png";
@@ -473,8 +475,8 @@ function App() {
                 method: "POST",
             });
             setToast(
-                result.refundRequested
-                    ? "Cancelled. Refund request created."
+                result.status === 'cancellation_requested'
+                    ? `Cancellation requested. Estimated refund: ৳${result.refundAmount}. Awaiting admin review.`
                     : "Booking cancelled."
             );
             await Promise.all([loadBookings(), loadNotifications()]);
@@ -499,6 +501,12 @@ function App() {
     ).length;
 
     const authSuccess = async (session) => {
+        if (session.pendingApproval) {
+            setAuthOpen(false);
+            setAuthResume(null);
+            setToast(session.message || "Operator account is waiting for admin approval.");
+            return;
+        }
         storeSession(session);
         setUser(session.user);
         setAuthOpen(false);
@@ -668,6 +676,20 @@ function App() {
 
                 {page === "admin-assign-trip" && (
                     <AdminAssignTrip
+                        user={user}
+                        handleError={handleError}
+                        setToast={setToast}
+                    />
+                )}
+                {page === "admin-cancellations" && (
+                    <AdminCancellationRequests
+                        user={user}
+                        handleError={handleError}
+                        setToast={setToast}
+                    />
+                )}
+                {page === "admin-operator-approvals" && (
+                    <AdminOperatorApprovals
                         user={user}
                         handleError={handleError}
                         setToast={setToast}
@@ -915,7 +937,6 @@ function SearchPage({
                     <div className="result-top">
                         <div>
                             <b>{filtered.length} trains available</b>
-                            <small>Live results · fares rounded up to the next ৳10</small>
                         </div>
                         <select value={sort} onChange={(e) => setSort(e.target.value)}>
                             <option value="earliest">Earliest departure</option>
@@ -1784,8 +1805,12 @@ function Tickets({ user, bookings, navigate, cancel, onAuth, handleError }) {
                     {bookings.map((b) => (
                         <article className="booking-card card" key={b.pnr_number}>
                             <div className="booking-status">
-                                <span className={String(b.booking_status).toLowerCase()}>
-                                    {b.booking_status}
+                                <span className={b.cancellation_request_status === 'REQUESTED'
+                                    ? 'requested'
+                                    : String(b.booking_status).toLowerCase()}>
+                                    {b.cancellation_request_status === 'REQUESTED'
+                                        ? 'CANCELLATION REQUESTED'
+                                        : b.booking_status}
                                 </span>
                                 <small>PNR {b.pnr_number}</small>
                             </div>
@@ -1819,7 +1844,9 @@ function Tickets({ user, bookings, navigate, cancel, onAuth, handleError }) {
                                 <button onClick={() => window.print()}>
                                     <Icon name="print" size={16} /> Print
                                 </button>
-                                {["CONFIRMED", "PENDING"].includes(b.booking_status) && (
+                                {b.booking_status === 'CONFIRMED' && b.cancellation_request_status === 'REQUESTED' ? (
+                                    <button disabled>Awaiting review</button>
+                                ) : ["CONFIRMED", "PENDING"].includes(b.booking_status) && (
                                     <button
                                         className="danger-text"
                                         onClick={() => cancel(b.pnr_number)}
@@ -2522,7 +2549,7 @@ function Support({ setToast }) {
                                         : q.includes("spare")
                                             ? "At 60 minutes or more delay, the destination-terminal SPARE trainset is reserved for the next opposite-direction trip. The delayed train completes its current journey and becomes the new spare."
                                             : q.includes("refund")
-                                                ? "Cancelling a confirmed booking creates refund records for the issued tickets."
+                                                ? "Cancellation requests are reviewed by an admin. Approved requests receive 70% within 24 hours of booking, 50% within 24–72 hours, and 20% after 72 hours. No refund applies when departure is within 24 hours."
                                                 : "Search a route/date, select a real trip and class, choose segment-available seats, enter passenger details and complete payment."}
                                 </p>
                             </details>
@@ -2573,7 +2600,8 @@ function Support({ setToast }) {
 
 function AuthModal({ mode, setMode, close, onSuccess }) {
     const [loading, setLoading] = useState(false),
-        [error, setError] = useState("");
+        [error, setError] = useState(""),
+        [accountRole, setAccountRole] = useState("PASSENGER");
     const submit = async (e) => {
         e.preventDefault();
         setLoading(true);
@@ -2598,6 +2626,7 @@ function AuthModal({ mode, setMode, close, onSuccess }) {
                             email: f.get("email"),
                             phone: f.get("phone"),
                             password: f.get("password"),
+                            role: accountRole,
                         },
                     });
             await onSuccess(data);
@@ -2656,8 +2685,21 @@ function AuthModal({ mode, setMode, close, onSuccess }) {
                                 <input name="phone" placeholder="01XXXXXXXXX" />
                             </label>
 
+                            <label>
+                                Account type
+                                <select
+                                    value={accountRole}
+                                    onChange={(event) => setAccountRole(event.target.value)}
+                                >
+                                    <option value="PASSENGER">User</option>
+                                    <option value="OPERATOR">Operator</option>
+                                </select>
+                            </label>
+
                             <p className="form-hint">
-                                New accounts are created as passenger accounts.
+                                {accountRole === "OPERATOR"
+                                    ? "Operator accounts require admin approval before sign-in."
+                                    : "Create a user account to book and manage journeys."}
                             </p>
                         </>
                     )}
@@ -2688,11 +2730,6 @@ function AuthModal({ mode, setMode, close, onSuccess }) {
                                 ? "Sign in"
                                 : "Create account"}
                     </button>
-                    <small className="account-note">
-                        Operator: operator@ferrovia.local / Operator123!
-                        <br />
-                        Admin: admin@ferrovia.local / Admin123!
-                    </small>
                 </form>
             </div>
         </div>
