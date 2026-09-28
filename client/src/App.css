@@ -5282,8 +5282,9 @@ button:disabled {
 .live-facts article {
   padding: 16px;
   border-radius: 12px;
-  background: #f4faf9;
-  border: 1px solid #e5efef;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  color: var(--ink);
 }
 .live-facts small,
 .live-facts b,
@@ -5302,7 +5303,7 @@ button:disabled {
   font-size: 15px;
 }
 .live-facts span {
-  color: #61767d;
+  color: var(--muted);
   font-size: 11px;
 }
 .stop-timeline {
@@ -6937,6 +6938,26 @@ html[data-theme="dark"] body {
 
 .app[data-theme="dark"] .seat-grid button:not(.selected) {
   color: #000;
+}
+
+.app[data-theme="dark"] .live-facts article,
+.app[data-theme="dark"] .journey-meta span,
+.app[data-theme="dark"] .travel-note,
+.app[data-theme="dark"] .stop-row.upcoming .stop-dot {
+  border-color: rgba(62, 85, 100, 0.95);
+  background: rgba(24, 36, 47, 0.96);
+  color: #dce8eb;
+}
+
+.app[data-theme="dark"] .live-facts small,
+.app[data-theme="dark"] .live-facts span,
+.app[data-theme="dark"] .journey-meta span {
+  color: #9eb3bd;
+}
+
+.app[data-theme="dark"] .live-facts b,
+.app[data-theme="dark"] .journey-meta b {
+  color: #edf7f8;
 }
 
 .app[data-theme="dark"] .stats,
