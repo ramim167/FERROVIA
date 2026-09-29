@@ -33,108 +33,7 @@ export async function ensureUpcomingTrips(days = generationDays()) {
   return withTransaction(async connection => {
     const before = await countUpcomingRows(connection, days)
 
-    await connection.query(
-      `
-      DO $$
-      DECLARE
-          v_date DATE;
-          v_route RECORD;
-          v_stop RECORD;
-          v_trip_id INT;
-          v_day_code VARCHAR(3);
-          v_sched_dep TIMESTAMP;
-          v_sched_arr TIMESTAMP;
-          v_stop_arr TIMESTAMP;
-          v_stop_dep TIMESTAMP;
-          v_window_start TIMESTAMP;
-          v_window_end TIMESTAMP;
-      BEGIN
-          v_window_start :=
-              CASE
-                  WHEN CURRENT_TIME < TIME '${String(OPERATING_DAY_START_HOUR).padStart(2, '0')}:00'
-                  THEN CURRENT_DATE - INTERVAL '1 day' + INTERVAL '${OPERATING_DAY_START_HOUR} hours'
-                  ELSE CURRENT_DATE + INTERVAL '${OPERATING_DAY_START_HOUR} hours'
-              END;
-          v_window_end := v_window_start + INTERVAL '${days} days';
-
-          FOR i IN 0..${days} LOOP
-              v_date := CURRENT_DATE + i;
-              v_day_code := UPPER(TRIM(TO_CHAR(v_date, 'Dy')));
-
-              FOR v_route IN (
-                  SELECT r.ROUTE_ID, r.TRAIN_ID, rd.DEPARTURE_MINUTE
-                  FROM ROUTES r
-                  JOIN TRAIN_RUNNING_DAYS rd ON r.ROUTE_ID = rd.ROUTE_ID
-                  WHERE LOWER(r.IS_ACTIVE::text) IN ('1','true','t')
-                    AND rd.DAY_CODE = v_day_code
-              ) LOOP
-                  v_sched_dep := v_date + (v_route.DEPARTURE_MINUTE || ' minutes')::INTERVAL;
-
-                  IF v_sched_dep < v_window_start OR v_sched_dep >= v_window_end THEN
-                      CONTINUE;
-                  END IF;
-
-                  SELECT v_sched_dep + (MAX(COALESCE(ARRIVAL_OFFSET_MIN, DEPARTURE_OFFSET_MIN)) || ' minutes')::INTERVAL
-                  INTO v_sched_arr
-                  FROM ROUTE_STOPS
-                  WHERE ROUTE_ID = v_route.ROUTE_ID;
-
-                  v_trip_id := NULL;
-
-                  INSERT INTO TRIPS
-                      (TRAIN_ID, ROUTE_ID, JOURNEY_DATE, SCHEDULED_DEPARTURE, SCHEDULED_ARRIVAL, TRIP_STATUS)
-                  VALUES
-                      (v_route.TRAIN_ID, v_route.ROUTE_ID, DATE(v_sched_dep), v_sched_dep, v_sched_arr, 'SCHEDULED')
-                  ON CONFLICT ON CONSTRAINT UQ_TRIP_ROUTE_DEPARTURE DO NOTHING
-                  RETURNING TRIP_ID INTO v_trip_id;
-
-                  IF v_trip_id IS NULL THEN
-                      SELECT TRIP_ID
-                      INTO v_trip_id
-                      FROM TRIPS
-                      WHERE ROUTE_ID = v_route.ROUTE_ID
-                        AND SCHEDULED_DEPARTURE = v_sched_dep;
-                  END IF;
-
-                  FOR v_stop IN (
-                      SELECT ROUTE_STOP_ID, STATION_ID, STOP_SEQUENCE, ARRIVAL_OFFSET_MIN, DEPARTURE_OFFSET_MIN
-                      FROM ROUTE_STOPS
-                      WHERE ROUTE_ID = v_route.ROUTE_ID
-                      ORDER BY STOP_SEQUENCE
-                  ) LOOP
-                      IF v_stop.ARRIVAL_OFFSET_MIN IS NOT NULL THEN
-                          v_stop_arr := v_sched_dep + (v_stop.ARRIVAL_OFFSET_MIN || ' minutes')::INTERVAL;
-                      ELSE
-                          v_stop_arr := NULL;
-                      END IF;
-
-                      IF v_stop.DEPARTURE_OFFSET_MIN IS NOT NULL THEN
-                          v_stop_dep := v_sched_dep + (v_stop.DEPARTURE_OFFSET_MIN || ' minutes')::INTERVAL;
-                      ELSE
-                          v_stop_dep := NULL;
-                      END IF;
-
-                      INSERT INTO TRIP_STOPS
-                          (TRIP_ID, ROUTE_STOP_ID, STATION_ID, STOP_SEQUENCE,
-                           SCHEDULED_ARRIVAL, SCHEDULED_DEPARTURE, STOP_STATUS)
-                      VALUES
-                          (v_trip_id, v_stop.ROUTE_STOP_ID, v_stop.STATION_ID, v_stop.STOP_SEQUENCE,
-                           v_stop_arr, v_stop_dep, 'UPCOMING')
-                      ON CONFLICT (TRIP_ID, STOP_SEQUENCE) DO NOTHING;
-                  END LOOP;
-
-                  INSERT INTO TRIP_SEATS (TRIP_ID, SEAT_ID, SEAT_STATUS)
-                  SELECT v_trip_id, s.SEAT_ID, 'AVAILABLE'
-                  FROM SEATS s
-                  JOIN COACHES c ON c.COACH_ID = s.COACH_ID
-                  WHERE c.TRAIN_ID = v_route.TRAIN_ID
-                    AND LOWER(s.IS_ACTIVE::text) IN ('1','true','t')
-                  ON CONFLICT (TRIP_ID, SEAT_ID) DO NOTHING;
-              END LOOP;
-          END LOOP;
-      END $$;
-      `
-    )
+    await connection.query('CALL generate_scheduled_trips($1)', [days])
 
     const after = await countUpcomingRows(connection, days)
     return {
@@ -181,6 +80,21 @@ async function countUpcomingRows(connection, days) {
     tripStops: Number(row.TRIP_STOPS || 0),
     tripSeats: Number(row.TRIP_SEATS || 0),
   }
+}
+
+async function expireStaleSeatHolds() {
+  if (getDatabaseMode() !== 'postgres') return 0
+
+  return withTransaction(async connection => {
+    const expired = await connection.query(
+      `SELECT COUNT(*)::INT AS EXPIRED_COUNT
+         FROM SEAT_RESERVATIONS
+        WHERE RESERVATION_STATUS = 'HELD'
+          AND HOLD_EXPIRES_AT <= CURRENT_TIMESTAMP`
+    )
+    await connection.query('CALL expire_stale_seat_holds()')
+    return Number(expired.rows[0]?.EXPIRED_COUNT || 0)
+  })
 }
 
 export async function autoCancelUnassignedTrips() {
@@ -285,15 +199,17 @@ async function cancelTripAndBookings(connection, tripId) {
     refundCount += refundsAfter - refundsBefore
     bookingCount += 1
 
-    await createNotification(connection, {
-      userId: booking.USER_ID,
-      bookingId: booking.BOOKING_ID,
-      tripId,
-      title: 'Trip cancelled',
-      message: booking.BOOKING_STATUS === 'CONFIRMED'
-        ? `Trip #${tripId} was cancelled because no operator was assigned before departure. Refund processing has been started for booking ${booking.PNR_NUMBER}.`
-        : `Trip #${tripId} was cancelled because no operator was assigned before departure. Pending booking ${booking.PNR_NUMBER} was released.`,
-    })
+    if (getDatabaseMode() !== 'postgres') {
+      await createNotification(connection, {
+        userId: booking.USER_ID,
+        bookingId: booking.BOOKING_ID,
+        tripId,
+        title: 'Trip cancelled',
+        message: booking.BOOKING_STATUS === 'CONFIRMED'
+          ? `Trip #${tripId} was cancelled because no operator was assigned before departure. Refund processing has been started for booking ${booking.PNR_NUMBER}.`
+          : `Trip #${tripId} was cancelled because no operator was assigned before departure. Pending booking ${booking.PNR_NUMBER} was released.`,
+      })
+    }
   }
 
   return {
@@ -321,8 +237,9 @@ export function runScheduleMaintenance() {
 
   maintenanceRun = (async () => {
     const cancellations = await autoCancelUnassignedTrips()
+    const expiredSeatHolds = await expireStaleSeatHolds()
     const generation = await ensureUpcomingTrips()
-    return { cancellations, generation }
+    return { cancellations, expiredSeatHolds, generation }
   })().finally(() => {
     maintenanceRun = undefined
   })

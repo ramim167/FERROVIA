@@ -12,10 +12,11 @@ For example, from the repository root:
 psql "$PG_CONNECTION_STRING" -v ON_ERROR_STOP=1 -f database/schema.sql -f database/seed-local.sql -f database/required_db_features.sql
 ```
 
-`required_db_features.sql` installs the `calculate_ticket_fare` function, the
-`cancel_booking_workflow` procedure, and the overlapping-seat-reservation
-trigger. These PostgreSQL objects are not loaded by the in-memory application
-mode.
+`required_db_features.sql` installs the fare, seat availability, cancellation,
+and PNR functions; booking, hold expiry, trip generation, and cancellation
+review procedures; and the reservation, payment, trip operation, notification,
+and timestamp triggers. `schema.sql` includes this bundle for fresh installs.
+These PostgreSQL objects are not loaded by the in-memory application mode.
 
 For an existing PostgreSQL database, apply
 `sql_history/004_booking_cancellation_requests.sql` before starting the updated
@@ -24,6 +25,10 @@ API. It adds the request-review table used by passenger cancellation requests.
 Apply `sql_history/005_operator_approval_status.sql` to existing databases
 before enabling Operator registration. It adds the `PENDING` user status used
 until an administrator approves an operator account.
+
+After applying migrations `004` and `005`, apply
+`sql_history/006_database_automation.sql` to install the automated workflows
+on an existing database.
 
 The schema contains the complete railway data model plus:
 
@@ -49,6 +54,5 @@ Run the rollback-safe PostgreSQL regression suite from the repository root:
 npm run test:postgres
 ```
 
-It verifies `calculate_ticket_fare`, `trg_no_overlapping_reservation`, and
-`cancel_booking_workflow` against the configured database without retaining
-its temporary booking data.
+It verifies the required functions, procedures, and triggers against the
+configured database without retaining its temporary booking data.

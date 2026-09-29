@@ -1,3 +1,11 @@
+export async function calculateCancellationRefund(connection, bookingId) {
+  const result = await connection.query(
+    `SELECT * FROM calculate_cancellation_refund($1)`,
+    [bookingId]
+  )
+  return result.rows[0] || null
+}
+
 export async function getCancellationTiming(connection, bookingId) {
   const result = await connection.query(
     `SELECT
@@ -23,7 +31,12 @@ export async function hasPendingCancellationRequest(connection, bookingId) {
   return result.rows.length > 0
 }
 
-export async function createCancellationRequest(connection, { bookingId, userId, refundPercent }) {
+export async function createCancellationRequest(connection, {
+  bookingId,
+  userId,
+  refundPercent,
+  refundAmount: calculatedRefundAmount,
+}) {
   const tickets = await connection.query(
     `SELECT TK.TICKET_FARE
        FROM PASSENGERS P
@@ -34,17 +47,19 @@ export async function createCancellationRequest(connection, { bookingId, userId,
   )
   if (!tickets.rows.length) return null
 
-  const refundAmount = tickets.rows.reduce(
-    (total, ticket) => total + Math.round(Number(ticket.TICKET_FARE) * refundPercent) / 100,
-    0
-  )
+  const refundAmount = calculatedRefundAmount === undefined
+    ? tickets.rows.reduce(
+      (total, ticket) => total + Math.round(Number(ticket.TICKET_FARE) * refundPercent) / 100,
+      0
+    )
+    : Number(calculatedRefundAmount)
 
   const result = await connection.query(
     `INSERT INTO CANCELLATION_REQUESTS
       (BOOKING_ID, REQUESTED_BY, REQUEST_STATUS, REFUND_PERCENT, REFUND_AMOUNT)
     VALUES ($1, $2, 'REQUESTED', $3, $4)
      RETURNING CANCELLATION_REQUEST_ID, REFUND_PERCENT, REFUND_AMOUNT, REQUESTED_AT`,
-      [bookingId, userId, refundPercent, Math.round(refundAmount * 100) / 100]
+    [bookingId, userId, refundPercent, Math.round(refundAmount * 100) / 100]
   )
   return result.rows[0] || null
 }
@@ -132,4 +147,11 @@ export async function decideCancellationRequest(connection, { requestId, adminUs
     [requestId, adminUserId, status]
   )
   return result.rows[0] || null
+}
+
+export async function processCancellationRequest(connection, requestId, adminUserId, decision) {
+  await connection.query(
+    `CALL process_cancellation_request($1, $2, $3)`,
+    [requestId, adminUserId, decision]
+  )
 }

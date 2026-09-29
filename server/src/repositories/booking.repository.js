@@ -1,3 +1,21 @@
+import { getDatabaseMode } from '../config/database.js'
+
+export async function createBookingWithSeatHold(connection, booking) {
+  await connection.query(
+    `CALL create_booking_with_seat_hold($1, $2, $3, $4, $5, $6, $7::jsonb, $8)`,
+    [
+      booking.userId,
+      booking.pnr,
+      booking.tripId,
+      booking.sourceStationId,
+      booking.destinationStationId,
+      booking.classId,
+      JSON.stringify(booking.passengers),
+      booking.holdMinutes,
+    ]
+  )
+}
+
 export async function createBooking(connection, booking) {
   const result = await connection.query(
     `INSERT INTO BOOKINGS
@@ -92,6 +110,57 @@ export async function createPayment(connection, { bookingId, transactionId, amou
 }
 
 export async function getBookingByPnr(connection, pnr, userId = null) {
+  if (getDatabaseMode() === 'postgres') {
+    const details = await connection.query(
+      `SELECT * FROM get_ticket_details_by_pnr($1)`,
+      [pnr]
+    )
+    const first = details.rows[0]
+    if (!first || (userId !== null && Number(first.USER_ID) !== Number(userId))) return null
+
+    const booking = {
+      BOOKING_ID: first.BOOKING_ID,
+      PNR_NUMBER: first.PNR_NUMBER,
+      USER_ID: first.USER_ID,
+      TRIP_ID: first.TRIP_ID,
+      BOOKING_TIME: first.BOOKING_TIME,
+      TOTAL_FARE: first.TOTAL_FARE,
+      BOOKING_STATUS: first.BOOKING_STATUS,
+      TRAIN_NAME: first.TRAIN_NAME,
+      TRAIN_CODE: first.TRAIN_CODE,
+      DIRECTION: first.DIRECTION,
+      SOURCE_STATION: first.SOURCE_STATION,
+      DESTINATION_STATION: first.DESTINATION_STATION,
+      SCHEDULED_DEPARTURE: first.SCHEDULED_DEPARTURE,
+      SCHEDULED_ARRIVAL: first.SCHEDULED_ARRIVAL,
+      CLASS_NAME: first.CLASS_NAME,
+      TRIP_STATUS: first.TRIP_STATUS,
+      CURRENT_DELAY_MINUTES: first.CURRENT_DELAY_MINUTES,
+      LAST_LEFT_STATION: first.LAST_LEFT_STATION,
+      NEXT_STATION: first.NEXT_STATION,
+    }
+    booking.PASSENGERS = details.rows
+      .filter(row => row.PASSENGER_ID !== null)
+      .map(row => ({
+        PASSENGER_ID: row.PASSENGER_ID,
+        PASSENGER_NAME: row.PASSENGER_NAME,
+        AGE: row.AGE,
+        GENDER: row.GENDER,
+        COACH_CODE: row.COACH_CODE,
+        SEAT_NUMBER: row.SEAT_NUMBER,
+        RESERVATION_ID: row.RESERVATION_ID,
+        RESERVATION_STATUS: row.RESERVATION_STATUS,
+        HOLD_EXPIRES_AT: row.HOLD_EXPIRES_AT,
+        TICKET_ID: row.TICKET_ID,
+        TICKET_STATUS: row.TICKET_STATUS,
+        TICKET_FARE: row.TICKET_FARE,
+        REFUND_ID: row.REFUND_ID,
+        REFUND_AMOUNT: row.REFUND_AMOUNT,
+        REFUND_STATUS: row.REFUND_STATUS,
+      }))
+    return booking
+  }
+
   const result = await connection.query(
     `SELECT B.BOOKING_ID, B.PNR_NUMBER, B.USER_ID, B.TRIP_ID, B.BOOKING_TIME,
             B.TOTAL_FARE, B.BOOKING_STATUS,

@@ -89,6 +89,8 @@ export async function getOperator(connection, userId) {
   return result.rows[0] || null
 }
 
+import { getDatabaseMode } from '../config/database.js'
+
 export async function listOperators(connection) {
   const result = await connection.query(
     `SELECT USER_ID, FULL_NAME, EMAIL, PHONE, ROLE, ACCOUNT_STATUS
@@ -112,9 +114,12 @@ export async function listPendingOperators(connection) {
 }
 
 export async function approvePendingOperator(connection, userId) {
+  const timestampUpdate = getDatabaseMode() === 'postgres'
+    ? ''
+    : ', UPDATED_AT = CURRENT_TIMESTAMP'
   const result = await connection.query(
     `UPDATE USERS
-        SET ACCOUNT_STATUS = 'ACTIVE', UPDATED_AT = CURRENT_TIMESTAMP
+        SET ACCOUNT_STATUS = 'ACTIVE'${timestampUpdate}
       WHERE USER_ID = $1
         AND ROLE = 'OPERATOR'
         AND ACCOUNT_STATUS = 'PENDING'

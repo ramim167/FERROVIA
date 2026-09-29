@@ -963,3 +963,5 @@ BEFORE INSERT OR UPDATE OF TRIP_SEAT_ID, SOURCE_STOP_SEQUENCE,
 ON SEAT_RESERVATIONS
 FOR EACH ROW
 EXECUTE FUNCTION validate_no_overlapping_reservation();
+
+\ir required_db_features.sql

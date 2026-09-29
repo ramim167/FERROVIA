@@ -1,3 +1,5 @@
+import { getDatabaseMode } from '../config/database.js'
+
 export async function getActiveAssignment(connection, tripId) {
   const result = await connection.query(
     `SELECT A.ASSIGNMENT_ID, A.TRIP_ID, A.TRAINSET_ID, A.TRAIN_ID,
@@ -33,9 +35,12 @@ export async function completeAssignment(connection, assignmentId) {
 }
 
 export async function setTrainsetStatus(connection, trainsetId, status, stationId = null) {
+  const timestampUpdate = getDatabaseMode() === 'postgres'
+    ? ''
+    : ', STATUS_UPDATED_AT = CURRENT_TIMESTAMP'
   await connection.query(
     `UPDATE TRAINSETS
-        SET STATUS = $2, CURRENT_STATION_ID = $3, STATUS_UPDATED_AT = CURRENT_TIMESTAMP
+        SET STATUS = $2, CURRENT_STATION_ID = $3${timestampUpdate}
       WHERE TRAINSET_ID = $1`,
     [trainsetId, status, stationId]
   )
@@ -114,9 +119,12 @@ export async function getTrainsetForUpdate(connection, trainsetId) {
 }
 
 export async function releaseTrainset(connection, trainsetId) {
+  const timestampUpdate = getDatabaseMode() === 'postgres'
+    ? ''
+    : ', STATUS_UPDATED_AT = CURRENT_TIMESTAMP'
   await connection.query(
     `UPDATE TRAINSETS
-        SET STATUS = 'SPARE', STATUS_UPDATED_AT = CURRENT_TIMESTAMP
+        SET STATUS = 'SPARE'${timestampUpdate}
       WHERE TRAINSET_ID = $1`,
     [trainsetId]
   )

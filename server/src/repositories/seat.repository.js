@@ -74,6 +74,37 @@ export async function listAvailableSeats(connection, { tripId, sourceStationId, 
   return { segment, seats: result.rows }
 }
 
+export async function listAvailableSeatsForSegment(connection, {
+  tripId,
+  sourceStationId,
+  destinationStationId,
+  classId,
+}) {
+  const segment = await getTripSegment(connection, tripId, sourceStationId, destinationStationId)
+  if (!segment) return { segment: null, seats: [] }
+
+  const result = await connection.query(
+    `WITH SEAT_AVAILABILITY AS (
+       SELECT * FROM get_available_seats_for_segment($1, $2, $3, $4)
+     )
+     SELECT TS.TRIP_SEAT_ID, S.SEAT_ID, S.SEAT_NUMBER, S.SEAT_TYPE,
+            C.COACH_ID, C.COACH_CODE, CT.CLASS_ID, CT.CLASS_NAME, CT.CLASS_CODE,
+            COALESCE(A.IS_AVAILABLE, 0)::INT AS IS_AVAILABLE
+       FROM TRIP_SEATS TS
+       JOIN SEATS S ON S.SEAT_ID = TS.SEAT_ID
+       JOIN COACHES C ON C.COACH_ID = S.COACH_ID
+       JOIN CLASS_TYPES CT ON CT.CLASS_ID = C.CLASS_ID
+       LEFT JOIN SEAT_AVAILABILITY A ON A.TRIP_SEAT_ID = TS.TRIP_SEAT_ID
+      WHERE TS.TRIP_ID = $1
+        AND TS.SEAT_STATUS = 'AVAILABLE'
+        AND LOWER(S.IS_ACTIVE::TEXT) IN ('1','true','t')
+        AND CT.CLASS_ID = $4
+      ORDER BY C.COACH_ORDER, S.SEAT_NUMBER`,
+    [tripId, sourceStationId, destinationStationId, classId]
+  )
+  return { segment, seats: result.rows }
+}
+
 export async function lockTripSeat(connection, tripSeatId) {
   const result = await connection.query(
     `SELECT TS.TRIP_SEAT_ID, TS.TRIP_ID, TS.SEAT_ID, TS.SEAT_STATUS,

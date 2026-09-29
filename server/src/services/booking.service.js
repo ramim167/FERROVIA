@@ -2,8 +2,10 @@ import crypto from 'node:crypto'
 import { getDatabaseMode, withConnection, withTransaction } from '../config/database.js'
 import {
   cancelBooking,
+  cancelBookingWorkflow,
   confirmBookingAndReservations,
   createBooking,
+  createBookingWithSeatHold,
   createHeldReservation,
   createPassenger,
   createPayment,
@@ -15,11 +17,20 @@ import {
   listUserBookings,
 } from '../repositories/booking.repository.js'
 import {
+  calculateCancellationRefund,
   createCancellationRequest,
   getCancellationTiming,
   hasPendingCancellationRequest,
 } from '../repositories/cancellation.repository.js'
-import { calculateTicketFare, getFareRule, getTripSegment, hasOverlap, listAvailableSeats, lockTripSeat } from '../repositories/seat.repository.js'
+import {
+  calculateTicketFare,
+  getFareRule,
+  getTripSegment,
+  hasOverlap,
+  listAvailableSeats,
+  listAvailableSeatsForSegment,
+  lockTripSeat,
+} from '../repositories/seat.repository.js'
 import { badRequest, conflict, notFound } from '../utils/httpError.js'
 import { lowerKeys } from '../utils/serializers.js'
 
@@ -79,7 +90,10 @@ export async function availableSeats(query) {
   }
 
   return withConnection(async (connection) => {
-    const result = await listAvailableSeats(connection, {
+    const seatQuery = getDatabaseMode() === 'postgres' && classId
+      ? listAvailableSeatsForSegment
+      : listAvailableSeats
+    const result = await seatQuery(connection, {
       tripId: Number(tripId),
       sourceStationId: Number(sourceStationId),
       destinationStationId: Number(destinationStationId),
@@ -197,59 +211,91 @@ export async function createPendingBooking(userId, payload) {
     )
     const totalFare = Math.round(perPassengerFare * passengers.length * 100) / 100
 
-    for (const passenger of passengers) {
-      const seat = await lockTripSeat(connection, Number(passenger.tripSeatId))
-      if (!seat || Number(seat.TRIP_ID) !== Number(tripId) || seat.SEAT_STATUS !== 'AVAILABLE') {
-        throw conflict(`Seat ${passenger.tripSeatId} is unavailable`)
-      }
-      if (Number(seat.CLASS_ID) !== Number(classId)) {
-        throw badRequest(`Seat ${passenger.tripSeatId} does not belong to the selected class`)
-      }
-      if (await hasOverlap(connection, {
-        tripSeatId: Number(passenger.tripSeatId),
-        sourceSeq: Number(segment.SOURCE_SEQ),
-        destSeq: Number(segment.DEST_SEQ),
-      })) {
-        throw conflict(`Seat ${passenger.tripSeatId} is already occupied on this segment`)
-      }
-    }
-
-    let bookingId
     let pnr
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      pnr = makePnr()
-      try {
-        bookingId = await createBooking(connection, {
-          pnr,
-          userId,
-          tripId: Number(tripId),
+    if (getDatabaseMode() === 'postgres') {
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        pnr = makePnr()
+        await connection.query('SAVEPOINT create_booking_attempt')
+        try {
+          await createBookingWithSeatHold(connection, {
+            pnr,
+            userId,
+            tripId: Number(tripId),
+            sourceStationId: Number(sourceStationId),
+            destinationStationId: Number(destinationStationId),
+            classId: Number(classId),
+            passengers: passengers.map(passenger => ({
+              ...passenger,
+              age: Number(passenger.age),
+              gender: String(passenger.gender).toUpperCase(),
+              tripSeatId: Number(passenger.tripSeatId),
+            })),
+            holdMinutes: HOLD_MINUTES,
+          })
+          await connection.query('RELEASE SAVEPOINT create_booking_attempt')
+          break
+        } catch (error) {
+          await connection.query('ROLLBACK TO SAVEPOINT create_booking_attempt')
+          await connection.query('RELEASE SAVEPOINT create_booking_attempt')
+          const isDuplicatePnr = String(error?.constraint || '').toLowerCase() === 'uq_pnr_number'
+            || String(error?.message || '').toLowerCase().includes('uq_pnr_number')
+          if (!isDuplicatePnr || attempt === 2) throw error
+        }
+      }
+    } else {
+      for (const passenger of passengers) {
+        const seat = await lockTripSeat(connection, Number(passenger.tripSeatId))
+        if (!seat || Number(seat.TRIP_ID) !== Number(tripId) || seat.SEAT_STATUS !== 'AVAILABLE') {
+          throw conflict(`Seat ${passenger.tripSeatId} is unavailable`)
+        }
+        if (Number(seat.CLASS_ID) !== Number(classId)) {
+          throw badRequest(`Seat ${passenger.tripSeatId} does not belong to the selected class`)
+        }
+        if (await hasOverlap(connection, {
+          tripSeatId: Number(passenger.tripSeatId),
+          sourceSeq: Number(segment.SOURCE_SEQ),
+          destSeq: Number(segment.DEST_SEQ),
+        })) {
+          throw conflict(`Seat ${passenger.tripSeatId} is already occupied on this segment`)
+        }
+      }
+
+      let bookingId
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        pnr = makePnr()
+        try {
+          bookingId = await createBooking(connection, {
+            pnr,
+            userId,
+            tripId: Number(tripId),
+            sourceStationId: Number(sourceStationId),
+            destinationStationId: Number(destinationStationId),
+            classId: Number(classId),
+            totalFare,
+          })
+          break
+        } catch (error) {
+          if (!String(error.message).includes('UQ_PNR_NUMBER') || attempt === 2) throw error
+        }
+      }
+
+      for (const passenger of passengers) {
+        const passengerId = await createPassenger(connection, bookingId, {
+          name: passenger.name,
+          age: Number(passenger.age),
+          gender: String(passenger.gender).toUpperCase(),
+        })
+        await createHeldReservation(connection, {
+          bookingId,
+          passengerId,
+          tripSeatId: Number(passenger.tripSeatId),
           sourceStationId: Number(sourceStationId),
           destinationStationId: Number(destinationStationId),
-          classId: Number(classId),
-          totalFare,
+          sourceSeq: Number(segment.SOURCE_SEQ),
+          destSeq: Number(segment.DEST_SEQ),
+          holdMinutes: HOLD_MINUTES,
         })
-        break
-      } catch (error) {
-        if (!String(error.message).includes('UQ_PNR_NUMBER') || attempt === 2) throw error
       }
-    }
-
-    for (const passenger of passengers) {
-      const passengerId = await createPassenger(connection, bookingId, {
-        name: passenger.name,
-        age: Number(passenger.age),
-        gender: String(passenger.gender).toUpperCase(),
-      })
-      await createHeldReservation(connection, {
-        bookingId,
-        passengerId,
-        tripSeatId: Number(passenger.tripSeatId),
-        sourceStationId: Number(sourceStationId),
-        destinationStationId: Number(destinationStationId),
-        sourceSeq: Number(segment.SOURCE_SEQ),
-        destSeq: Number(segment.DEST_SEQ),
-        holdMinutes: HOLD_MINUTES,
-      })
     }
 
     const booking = await getBookingByPnr(connection, pnr, userId)
@@ -288,22 +334,24 @@ export async function payBooking(userId, pnr, payload = {}) {
         status: 'SUCCESSFUL',
       })
 
-      await confirmBookingAndReservations(connection, booking.BOOKING_ID)
-      const farePerPassenger = Number(booking.TOTAL_FARE) / reservations.length
-      for (const reservation of reservations) {
-        await createTicket(connection, {
-          passengerId: reservation.PASSENGER_ID,
-          reservationId: reservation.RESERVATION_ID,
-          fare: farePerPassenger,
+      if (getDatabaseMode() !== 'postgres') {
+        await confirmBookingAndReservations(connection, booking.BOOKING_ID)
+        const farePerPassenger = Number(booking.TOTAL_FARE) / reservations.length
+        for (const reservation of reservations) {
+          await createTicket(connection, {
+            passengerId: reservation.PASSENGER_ID,
+            reservationId: reservation.RESERVATION_ID,
+            fare: farePerPassenger,
+          })
+        }
+        await createNotification(connection, {
+          userId,
+          bookingId: booking.BOOKING_ID,
+          tripId: booking.TRIP_ID,
+          title: 'Booking confirmed',
+          message: `Your booking ${pnr} is confirmed and your e-ticket is ready.`,
         })
       }
-      await createNotification(connection, {
-        userId,
-        bookingId: booking.BOOKING_ID,
-        tripId: booking.TRIP_ID,
-        title: 'Booking confirmed',
-        message: `Your booking ${pnr} is confirmed and your e-ticket is ready.`,
-      })
 
       return lowerKeys(await getBookingByPnr(connection, pnr, userId))
     })
@@ -336,14 +384,18 @@ export async function cancelUserBooking(userId, pnr) {
     }
 
     if (booking.BOOKING_STATUS === 'PENDING') {
-      await cancelBooking(connection, booking.BOOKING_ID)
-      await createNotification(connection, {
-        userId,
-        bookingId: booking.BOOKING_ID,
-        tripId: booking.TRIP_ID,
-        title: 'Booking cancelled',
-        message: `Pending booking ${pnr} was cancelled and its seat hold was released.`,
-      })
+      if (getDatabaseMode() === 'postgres') {
+        await cancelBookingWorkflow(connection, booking.BOOKING_ID)
+      } else {
+        await cancelBooking(connection, booking.BOOKING_ID)
+        await createNotification(connection, {
+          userId,
+          bookingId: booking.BOOKING_ID,
+          tripId: booking.TRIP_ID,
+          title: 'Booking cancelled',
+          message: `Pending booking ${pnr} was cancelled and its seat hold was released.`,
+        })
+      }
       return { pnr, status: 'cancelled', refundRequested: false }
     }
 
@@ -351,17 +403,26 @@ export async function cancelUserBooking(userId, pnr) {
       throw conflict('A cancellation request is already awaiting admin review')
     }
 
-    const timing = await getCancellationTiming(connection, booking.BOOKING_ID)
-    if (!timing) throw notFound('Booking trip not found')
-
-    const refundPercent = cancellationRefundPercent(
-      timing.HOURS_SINCE_BOOKING,
-      timing.HOURS_UNTIL_DEPARTURE
-    )
+    let refundPercent
+    let refundAmount
+    if (getDatabaseMode() === 'postgres') {
+      const refund = await calculateCancellationRefund(connection, booking.BOOKING_ID)
+      if (!refund) throw notFound('Booking trip not found')
+      refundPercent = Number(refund.REFUND_PERCENT)
+      refundAmount = Number(refund.REFUND_AMOUNT)
+    } else {
+      const timing = await getCancellationTiming(connection, booking.BOOKING_ID)
+      if (!timing) throw notFound('Booking trip not found')
+      refundPercent = cancellationRefundPercent(
+        timing.HOURS_SINCE_BOOKING,
+        timing.HOURS_UNTIL_DEPARTURE
+      )
+    }
     const request = await createCancellationRequest(connection, {
       bookingId: booking.BOOKING_ID,
       userId,
       refundPercent,
+      refundAmount,
     })
     if (!request) throw conflict('No confirmed tickets are available to cancel')
 

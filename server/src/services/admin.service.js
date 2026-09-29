@@ -1,4 +1,5 @@
 import {
+  getDatabaseMode,
   withConnection,
   withTransaction
 } from '../config/database.js'
@@ -34,6 +35,7 @@ import {
   getCancellationBookingForUpdate,
   getCancellationRequestForUpdate,
   listPendingCancellationRequests,
+  processCancellationRequest,
 } from '../repositories/cancellation.repository.js'
 import {
   cancelAssignment,
@@ -561,6 +563,32 @@ export async function decideCancellation(requestId, adminUserId, decision) {
   }
 
   return withTransaction(async connection => {
+    if (getDatabaseMode() === 'postgres') {
+      const request = await getCancellationRequestForUpdate(connection, normalizedRequestId)
+      if (!request) throw notFound('Cancellation request not found')
+      if (request.REQUEST_STATUS !== 'REQUESTED') {
+        throw conflict('Cancellation request has already been reviewed')
+      }
+      const booking = await getCancellationBookingForUpdate(connection, request.BOOKING_ID)
+      if (!booking) throw notFound('Booking not found')
+      if (booking.BOOKING_STATUS !== 'CONFIRMED') {
+        throw conflict('Booking is no longer eligible for cancellation review')
+      }
+      const status = normalizedDecision === 'APPROVE' ? 'APPROVED' : 'REJECTED'
+      await processCancellationRequest(
+        connection,
+        normalizedRequestId,
+        adminUserId,
+        status
+      )
+      return lowerKeys({
+        cancellationRequestId: normalizedRequestId,
+        pnr: booking.PNR_NUMBER,
+        status,
+        refundAmount: request.REFUND_AMOUNT,
+      })
+    }
+
     const request = await getCancellationRequestForUpdate(connection, normalizedRequestId)
     if (!request) throw notFound('Cancellation request not found')
     if (request.REQUEST_STATUS !== 'REQUESTED') {

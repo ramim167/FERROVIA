@@ -1,4 +1,5 @@
 import {
+  getDatabaseMode,
   withConnection,
   withTransaction
 } from '../config/database.js'
@@ -54,7 +55,7 @@ async function calculateStopDelay(connection, tripStopId) {
 
 export async function operatorTrips(user, date) {
   return withConnection(async (connection) => {
-    const rows = await listOperatorTrips(connection,user.userId,date)
+    const rows = await listOperatorTrips(connection, user.userId, date)
     return lowerKeys(rows)
   })
 }
@@ -98,9 +99,13 @@ export async function arriveAtStop(user, tripId, tripStopId) {
     let rotation = null
 
     if (isDestination) {
-      await completeTrip(connection, tripId)
-      const updatedTrip = await getTrip(connection, tripId, true)
-      rotation = await finishTrainsetRotation(connection, updatedTrip)
+      if (getDatabaseMode() === 'postgres') {
+        rotation = { action: 'database_trigger' }
+      } else {
+        await completeTrip(connection, tripId)
+        const updatedTrip = await getTrip(connection, tripId, true)
+        rotation = await finishTrainsetRotation(connection, updatedTrip)
+      }
     }
 
     const live = await getLiveTrip(connection, tripId)
@@ -144,14 +149,19 @@ export async function departFromStop(user, tripId, tripStopId) {
       operatorId: user.userId
     })
 
-    if (Number(stop.STOP_SEQUENCE) === 1) {
+    if (Number(stop.STOP_SEQUENCE) === 1 && getDatabaseMode() !== 'postgres') {
       await markTripStarted(connection, tripId)
       await activateCurrentTrainset(connection, trip)
     }
 
     const delay = await calculateStopDelay(connection, tripStopId)
     const updatedTrip = await getTrip(connection, tripId, true)
-    const spare = await reserveSpareAfterDelay(connection, updatedTrip, delay)
+    const spare = getDatabaseMode() === 'postgres'
+      ? {
+        triggered: Boolean(updatedTrip.SPARE_TRIGGERED_AT),
+        reason: 'database_trigger',
+      }
+      : await reserveSpareAfterDelay(connection, updatedTrip, delay)
     const live = await getLiveTrip(connection, tripId)
 
     return lowerKeys({
