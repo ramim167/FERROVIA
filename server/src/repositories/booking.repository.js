@@ -188,28 +188,11 @@ export async function cancelBooking(connection, bookingId) {
   )
 }
 
-function isMissingProcedure(error) {
-  const message = String(error?.message || '').toLowerCase()
-  return (
-    error?.code === '42883' ||
-    error?.code === '42601' ||
-    message.includes('cancel_booking_workflow') ||
-    message.includes('syntax error at or near "call"') ||
-    message.includes('not supported')
-  )
-}
-
 export async function cancelBookingWorkflow(connection, bookingId) {
-  try {
-    await connection.query(
-      `CALL cancel_booking_workflow($1)`,
-      [bookingId]
-    )
-  } catch (error) {
-    if (!isMissingProcedure(error)) throw error
-    await createRefundRequests(connection, bookingId)
-    await cancelBooking(connection, bookingId)
-  }
+  await connection.query(
+    `CALL cancel_booking_workflow($1)`,
+    [bookingId]
+  )
 }
 
 export async function createNotification(connection, { userId, bookingId = null, tripId = null, title, message }) {

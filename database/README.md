@@ -42,3 +42,13 @@ Additional scripts:
 - `seed_running_days.sql`: running-day definitions
 - `trip.sql`: trip and fare helper data
 - `sql_history/`: applied schema corrections and history
+
+Run the rollback-safe PostgreSQL regression suite from the repository root:
+
+```bash
+npm run test:postgres
+```
+
+It verifies `calculate_ticket_fare`, `trg_no_overlapping_reservation`, and
+`cancel_booking_workflow` against the configured database without retaining
+its temporary booking data.

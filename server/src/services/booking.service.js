@@ -1,5 +1,5 @@
 import crypto from 'node:crypto'
-import { withConnection, withTransaction } from '../config/database.js'
+import { getDatabaseMode, withConnection, withTransaction } from '../config/database.js'
 import {
   cancelBooking,
   confirmBookingAndReservations,
@@ -33,6 +33,19 @@ function makeTransactionId() {
   return `TXN-${Date.now()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`
 }
 
+function isDuplicatePaymentReference(error) {
+  const constraint = String(error?.constraint || '').toLowerCase()
+  const message = String(error?.message || '').toLowerCase()
+  return (
+    (error?.code === '23505' || message.includes('duplicate key')) &&
+    (
+      constraint === 'uq_payment_txn' ||
+      message.includes('uq_payment_txn') ||
+      message.includes('(transaction_id)')
+    )
+  )
+}
+
 export function fareForSegment(segment, fareRule) {
   const distance = Number(segment.DEST_DISTANCE_KM) - Number(segment.SOURCE_DISTANCE_KM)
   if (distance <= 0) throw badRequest('Invalid route distance for selected segment')
@@ -49,26 +62,14 @@ export function cancellationRefundPercent(hoursSinceBooking, hoursUntilDeparture
   return 20
 }
 
-function isMissingDatabaseFunction(error) {
-  const message = String(error?.message || '').toLowerCase()
-  return (
-    error?.code === '42883' ||
-    error?.code === '42601' ||
-    message.includes('calculate_ticket_fare') ||
-    message.includes('does not exist') ||
-    message.includes('not supported')
-  )
-}
-
 async function fareForSegmentFromDatabase(connection, params, segment, fareRule) {
-  try {
-    const fare = await calculateTicketFare(connection, params)
-    if (fare !== null && fare !== undefined) return Number(fare)
-  } catch (error) {
-    if (!isMissingDatabaseFunction(error)) throw error
-  }
+  if (getDatabaseMode() !== 'postgres') return fareForSegment(segment, fareRule)
 
-  return fareForSegment(segment, fareRule)
+  const fare = await calculateTicketFare(connection, params)
+  if (fare === null || fare === undefined) {
+    throw badRequest('No fare could be calculated for the selected journey')
+  }
+  return Number(fare)
 }
 
 export async function availableSeats(query) {
@@ -183,7 +184,17 @@ export async function createPendingBooking(userId, payload) {
 
     const fareRule = await getFareRule(connection, segment.TRAIN_ID, Number(classId))
     if (!fareRule) throw badRequest('No fare rule exists for the selected train/class')
-    const perPassengerFare = fareForSegment(segment, fareRule)
+    const perPassengerFare = await fareForSegmentFromDatabase(
+      connection,
+      {
+        tripId: Number(tripId),
+        sourceStationId: Number(sourceStationId),
+        destinationStationId: Number(destinationStationId),
+        classId: Number(classId),
+      },
+      segment,
+      fareRule
+    )
     const totalFare = Math.round(perPassengerFare * passengers.length * 100) / 100
 
     for (const passenger of passengers) {
@@ -251,45 +262,57 @@ export async function payBooking(userId, pnr, payload = {}) {
   const allowed = ['CARD', 'MOBILE_BANKING', 'BANK_TRANSFER', 'CASH']
   if (!allowed.includes(method)) throw badRequest(`payment method must be one of: ${allowed.join(', ')}`)
 
-  return withTransaction(async (connection) => {
-    const booking = await getBookingForUpdate(connection, pnr, userId)
-    if (!booking) throw notFound('Booking not found')
-    if (booking.BOOKING_STATUS !== 'PENDING') throw badRequest(`Booking is ${booking.BOOKING_STATUS.toLowerCase()}`)
+  const suppliedTransactionId = String(payload.transactionId || '').trim()
+  if (suppliedTransactionId.length > 80) {
+    throw badRequest('Transaction reference must be 80 characters or fewer')
+  }
 
-    const reservations = await getHeldReservations(connection, booking.BOOKING_ID)
-    if (!reservations.length) throw conflict('No active seat holds remain for this booking')
-    if (reservations.some((r) => !r.HOLD_EXPIRES_AT || new Date(r.HOLD_EXPIRES_AT).getTime() <= Date.now())) {
-      throw conflict('Seat hold expired. Please select seats again.')
-    }
+  try {
+    return await withTransaction(async (connection) => {
+      const booking = await getBookingForUpdate(connection, pnr, userId)
+      if (!booking) throw notFound('Booking not found')
+      if (booking.BOOKING_STATUS !== 'PENDING') throw badRequest(`Booking is ${booking.BOOKING_STATUS.toLowerCase()}`)
 
-    const transactionId = payload.transactionId || makeTransactionId()
-    await createPayment(connection, {
-      bookingId: booking.BOOKING_ID,
-      transactionId,
-      amount: Number(booking.TOTAL_FARE),
-      method,
-      status: 'SUCCESSFUL',
-    })
+      const reservations = await getHeldReservations(connection, booking.BOOKING_ID)
+      if (!reservations.length) throw conflict('No active seat holds remain for this booking')
+      if (reservations.some((r) => !r.HOLD_EXPIRES_AT || new Date(r.HOLD_EXPIRES_AT).getTime() <= Date.now())) {
+        throw conflict('Seat hold expired. Please select seats again.')
+      }
 
-    await confirmBookingAndReservations(connection, booking.BOOKING_ID)
-    const farePerPassenger = Number(booking.TOTAL_FARE) / reservations.length
-    for (const reservation of reservations) {
-      await createTicket(connection, {
-        passengerId: reservation.PASSENGER_ID,
-        reservationId: reservation.RESERVATION_ID,
-        fare: farePerPassenger,
+      const transactionId = suppliedTransactionId || makeTransactionId()
+      await createPayment(connection, {
+        bookingId: booking.BOOKING_ID,
+        transactionId,
+        amount: Number(booking.TOTAL_FARE),
+        method,
+        status: 'SUCCESSFUL',
       })
-    }
-    await createNotification(connection, {
-      userId,
-      bookingId: booking.BOOKING_ID,
-      tripId: booking.TRIP_ID,
-      title: 'Booking confirmed',
-      message: `Your booking ${pnr} is confirmed and your e-ticket is ready.`,
-    })
 
-    return lowerKeys(await getBookingByPnr(connection, pnr, userId))
-  })
+      await confirmBookingAndReservations(connection, booking.BOOKING_ID)
+      const farePerPassenger = Number(booking.TOTAL_FARE) / reservations.length
+      for (const reservation of reservations) {
+        await createTicket(connection, {
+          passengerId: reservation.PASSENGER_ID,
+          reservationId: reservation.RESERVATION_ID,
+          fare: farePerPassenger,
+        })
+      }
+      await createNotification(connection, {
+        userId,
+        bookingId: booking.BOOKING_ID,
+        tripId: booking.TRIP_ID,
+        title: 'Booking confirmed',
+        message: `Your booking ${pnr} is confirmed and your e-ticket is ready.`,
+      })
+
+      return lowerKeys(await getBookingByPnr(connection, pnr, userId))
+    })
+  } catch (error) {
+    if (isDuplicatePaymentReference(error)) {
+      throw conflict('This transaction reference has already been used. Enter a different reference.')
+    }
+    throw error
+  }
 }
 
 export async function getUserBooking(userId, pnr) {

@@ -1,10 +1,29 @@
 # FERROVIA
 
-FERROVIA is a complete full-stack railway e-ticketing and operational tracking system. It combines passenger booking, segment-aware seat reservation, payment confirmation, ticket management, operator station updates, live train status, spare trainset rotation, notifications, and an admin operations workspace in one project.
+FERROVIA is a full-stack railway e-ticketing and operations system. It combines passenger booking, segment-aware seat reservation, ticket management, operator station updates, database-derived live train status, spare trainset rotation, notifications, and an admin workspace in one project.
 
 ## Project Status
 
-The frontend, backend API, PostgreSQL schema, embedded local database, passenger flow, operator console, admin controls, live tracking model, booking lifecycle, and trainset rotation logic are implemented and covered by integration tests.
+Last verified: **29 September 2026**.
+
+The passenger, operator, and admin workflows are implemented. The automated backend suite currently contains **12 passing integration tests** in isolated memory mode. A separate rollback-safe PostgreSQL suite verifies the required function, procedure, and trigger against the configured PostgreSQL/Supabase database.
+
+### Verified Feature Matrix
+
+| Area | Available | Current implementation |
+| --- | --- | --- |
+| Authentication | Yes | Passenger and operator registration, all-role login, signed bearer token, role middleware, operator approval |
+| Passenger booking | Yes | Search, class/fare display, segment-aware seats, 10-minute hold, passenger details, confirmation, ticket wallet, print |
+| Payment | Demo workflow | Records a successful project payment transaction; no external payment gateway is connected |
+| Cancellation/refund | Yes | Passenger request, refund-policy calculation, admin approve/reject, refund records and notifications |
+| Live tracking | Yes | Operator Arrived/Departed events; no GPS integration |
+| Train operations | Yes | Dated trips, fixed timetable, delay calculation, operator/trainset assignment, automatic unassigned-trip cancellation |
+| Spare rotation | Yes | Delay-threshold-based trainset reservation and terminal rotation |
+| Admin train management | Yes | Create and edit train services, routes, stops, days, fares, coaches, seats, and trainsets |
+| Notifications | Yes | Database-backed list, mark one read, and mark all read |
+| Conduttore assistant | Yes | Direct FERROVIA database answers for route, schedule, off-day, fare, seat, recommendation, and live-status questions |
+| Theme and responsive UI | Yes | Persistent light/dark theme and responsive passenger, operator, admin, and assistant views |
+| Support form delivery | UI only | The FAQ works, but contact-form messages are not persisted or sent |
 
 ## Technology Stack
 
@@ -12,7 +31,7 @@ The frontend, backend API, PostgreSQL schema, embedded local database, passenger
 - Backend: Node.js + Express
 - Database: PostgreSQL
 - Local database: embedded PostgreSQL-compatible in-memory mode
-- Authentication: custom bearer token flow
+- Authentication: scrypt password hashing and custom HMAC-SHA256 bearer tokens
 - Styling: custom responsive CSS
 - Runtime ports:
   - Frontend: `http://localhost:5173`
@@ -44,6 +63,10 @@ The frontend, backend API, PostgreSQL schema, embedded local database, passenger
 - Admin train and route editing
 - Automatic trip issuing for the next seven operating days
 - Admin operator assignment for generated trips
+- Operator self-registration with admin approval
+- Passenger cancellation request review and refund policy
+- Database-backed Conduttore assistant with English, Banglish, and supported Bangla phrasing
+- Persistent light and dark themes across the application
 - Support/FAQ screen for booking, tracking, spare rotation, and refunds
 
 ## Core Railway Model
@@ -61,6 +84,55 @@ The frontend, backend API, PostgreSQL schema, embedded local database, passenger
 - `BOOKINGS`, `PASSENGERS`, `TICKETS`, `PAYMENTS`, `REFUNDS`: full ticketing lifecycle
 - `TRAINSET_ASSIGNMENTS`: normal, spare replacement, and manual trainset assignments
 - `NOTIFICATIONS`: user-facing booking and operational notifications
+
+## DBMS Implementation Evidence
+
+The project uses PostgreSQL features as part of the running application, not only as standalone SQL examples.
+
+| DBMS requirement | Object or code | Runtime use |
+| --- | --- | --- |
+| Tables and relationships | `database/schema.sql` | 23 public tables with primary keys, foreign keys, unique constraints, checks, and indexes |
+| Complex queries | `server/src/repositories/` | Multi-table search, segment availability, booking details, live status, refunds, and trainset operations |
+| Views | `VW_LIVE_TRAIN_STATUS`, `VW_TRAINSET_STATUS` | Live journey state and current physical trainset state |
+| Computed function | `calculate_ticket_fare(...)` | PostgreSQL booking and availability paths calculate segment fare inside the database |
+| Multi-table procedure | `cancel_booking_workflow(...)` | PostgreSQL maintenance cancels bookings, releases reservations, cancels tickets, and creates refund requests for unassigned departed trips |
+| Trigger | `TRG_NO_OVERLAPPING_RESERVATION` | Rejects overlapping active reservations for the same dated seat and locks the seat row for concurrency |
+| Explicit transaction | `withTransaction(...)` in `server/src/config/database.js` | Executes `BEGIN`, commits successful booking/payment/admin/operator workflows, and rolls back failures |
+| Row locking | `SELECT ... FOR UPDATE` | Protects booking, seat, trip, cancellation, and trainset mutations from concurrent updates |
+| Role authorization | `requireAuth` and `requireRole` | Protects passenger, operator, and admin endpoints at API level |
+
+The PostgreSQL objects are defined in both the canonical fresh schema and the reusable installation script:
+
+- `database/schema.sql`: complete fresh database definition
+- `database/required_db_features.sql`: idempotent function/procedure/trigger installation for an existing database
+
+Memory mode provides JavaScript equivalents where `pg-mem` cannot execute the PostgreSQL procedure and trigger. PostgreSQL mode deliberately calls the real database function and procedure; it does not silently fall back if those objects are missing.
+
+Use these read-only catalog queries in the Supabase SQL Editor to confirm the DBMS objects before a demonstration:
+
+```sql
+SELECT proname, prokind
+FROM pg_proc
+WHERE proname IN (
+  'calculate_ticket_fare',
+  'cancel_booking_workflow',
+  'validate_no_overlapping_reservation'
+)
+ORDER BY proname;
+
+SELECT tgname
+FROM pg_trigger
+WHERE tgname = 'trg_no_overlapping_reservation'
+  AND NOT tgisinternal;
+
+SELECT table_name
+FROM information_schema.views
+WHERE table_schema = 'public'
+  AND table_name IN ('vw_live_train_status', 'vw_trainset_status')
+ORDER BY table_name;
+```
+
+Expected `prokind` values are `f` for the two functions and `p` for the procedure.
 
 ## Live Train Tracking
 
@@ -95,7 +167,7 @@ The recommended fleet for a two-terminal service is one operating trainset and o
 
 ## Database Setup
 
-Run these files on a fresh PostgreSQL database:
+For a fresh PostgreSQL database, run the schema and seed in this order:
 
 ```bash
 psql "$PG_CONNECTION_STRING" -v ON_ERROR_STOP=1 \
@@ -104,9 +176,16 @@ psql "$PG_CONNECTION_STRING" -v ON_ERROR_STOP=1 \
   -f database/required_db_features.sql
 ```
 
-The final script installs the required PostgreSQL fare function, cancellation
-procedure, and seat-overlap trigger. The in-memory application mode does not
-install or exercise these PostgreSQL objects.
+`schema.sql` already contains the PostgreSQL fare function, cancellation procedure, and seat-overlap trigger. Running `required_db_features.sql` afterward safely recreates those three objects and is also the intended installer for an existing Supabase/PostgreSQL database. It does not drop project tables or delete application data.
+
+For an existing database, first apply any missing files from `database/sql_history/`, then run:
+
+```bash
+psql "$PG_CONNECTION_STRING" -v ON_ERROR_STOP=1 \
+  -f database/required_db_features.sql
+```
+
+The in-memory application mode does not install or execute these PostgreSQL-only objects.
 
 Additional data and maintenance scripts are also included:
 
@@ -125,12 +204,16 @@ The seed data creates:
 
 ## Seed Accounts
 
+The following credentials are created only by a fresh `database/seed-local.sql` load and by memory mode. They are not guaranteed to match an already-hosted Supabase database, where passwords may have been changed.
+
 ```text
 Operator: operator@ferrovia.local / Operator123!
 Admin:    admin@ferrovia.local    / Admin123!
 ```
 
 Passengers can create accounts from the website.
+
+Operators can also register, but remain `PENDING` and cannot sign in until an admin approves them. Public registration cannot create an admin account.
 
 ## Environment
 
@@ -163,6 +246,8 @@ AUTH_TOKEN_TTL_SECONDS=604800
 ```
 
 The frontend uses Vite's proxy for local development, so browser requests to `/api` are forwarded to `http://localhost:5000`.
+
+Conduttore does not require a Gemini or OpenAI key. It answers from project data through `/api/chat`.
 
 ## Installation
 
@@ -219,13 +304,14 @@ npm run dev
 4. Enter passenger details.
 5. Sign in or register.
 6. Create a 10-minute seat hold.
-7. Complete payment.
+7. Confirm the demo payment transaction.
 8. Receive confirmed booking, tickets, and notification.
-9. View, print, or cancel tickets from My Tickets.
+9. View or print tickets from My Tickets.
+10. Submit a cancellation request for admin review when eligible.
 
 ## Operator Workflow
 
-1. Sign in with the operator account.
+1. Register as an operator and wait for admin approval, or sign in with an approved operator account.
 2. Open the Operator Console.
 3. Select the assigned trip for the operating date.
 4. Mark each stop as Arrived and Departed.
@@ -238,8 +324,10 @@ npm run dev
 3. Create complete train services with routes, stops, running days, fares, coaches, seats, and trainsets.
 4. Edit train and route information.
 5. Review automatically issued trips for the next seven operating days.
-6. Assign operators to trips before departure.
-7. Monitor trip status, delay, cancellations, refunds, and fleet position.
+6. Approve pending operator accounts.
+7. Assign operators and trainsets to trips before departure.
+8. Approve or reject passenger cancellation requests.
+9. Monitor trip status, delay, refunds, and fleet position.
 
 ## API Overview
 
@@ -255,6 +343,7 @@ GET /api/trips/:tripId/status
 GET /api/trips/:tripId/stops
 GET /api/bookings/classes?tripId=...&sourceStationId=...&destinationStationId=...
 GET /api/bookings/seats?tripId=...&sourceStationId=...&destinationStationId=...&classId=...
+POST /api/chat
 ```
 
 Authentication:
@@ -264,6 +353,8 @@ POST /api/auth/register
 POST /api/auth/login
 GET  /api/auth/me
 ```
+
+`register` accepts only `PASSENGER` or `OPERATOR`; operator accounts require admin approval.
 
 Bookings:
 
@@ -298,9 +389,14 @@ Admin:
 GET   /api/admin/routes
 PATCH /api/admin/routes/:routeId
 GET   /api/admin/operators
+GET   /api/admin/operators/pending
+PATCH /api/admin/operators/:userId/approve
 GET   /api/admin/trips?date=YYYY-MM-DD
 PATCH /api/admin/trips/:tripId/operator
+PATCH /api/admin/trips/:tripId/trainset
 GET   /api/admin/trainsets?trainId=...
+GET   /api/admin/cancellation-requests
+PATCH /api/admin/cancellation-requests/:requestId
 GET   /api/admin/train-services
 GET   /api/admin/train-services/:trainId
 PATCH /api/admin/train-services/:trainId
@@ -314,13 +410,23 @@ Authenticated requests use:
 Authorization: Bearer <token>
 ```
 
+## Current Boundaries
+
+- Payment confirmation is an internal academic-project simulation; no bank, card processor, or mobile-financial-service gateway is connected.
+- Live position is derived from operator Arrived/Departed events, not GPS hardware.
+- Conduttore is a database-backed railway assistant, not a general-purpose LLM. It intentionally answers only supported FERROVIA questions.
+- The support contact form currently shows a successful UI message but does not save or send the submission.
+- Logout clears the browser session. Issued stateless bearer tokens remain valid until their configured expiry because there is no server-side revocation list.
+- Passenger and operator registration are public; admin accounts must be seeded or created directly through controlled database administration.
+- The default integration suite runs in isolated memory mode. Run `npm run test:postgres` explicitly to verify PostgreSQL-specific behavior against the configured database; its temporary fixture is always rolled back.
+
 ## Project Structure
 
 ```text
 Railway_us/
 |-- client/                 React + Vite frontend
 |   |-- src/App.jsx         Main app screens and workflows
-|   |-- src/components/     Navbar, search, date picker, admin forms, icons
+|   |-- src/components/     Navbar, search, assistant, date picker, admin forms, icons
 |   |-- src/lib/api.js      API client and session helpers
 |   `-- vite.config.js      Vite dev server and /api proxy
 |-- server/                 Express backend
@@ -332,7 +438,9 @@ Railway_us/
 |   |-- src/repositories/   SQL access layer
 |   |-- src/middleware/     Auth and error middleware
 |   `-- src/utils/          Auth, serialization, time, and HTTP helpers
-|-- database/               Schema, seed data, and SQL history
+|-- database/               Schema, seeds, migrations, function, procedure, and trigger SQL
+|   |-- schema.sql          Canonical fresh PostgreSQL schema
+|   `-- required_db_features.sql  Existing-database DBMS object installer
 |-- scripts/dev.cjs         Runs backend and frontend together
 |-- package.json            Root development runner
 `-- README.md               Final project documentation
@@ -347,6 +455,16 @@ npm run check
 ```
 
 This runs frontend lint, all backend integration tests, and the frontend production build.
+
+Current expected backend result: `12` tests passed, `0` failed.
+
+PostgreSQL/Supabase function, procedure, and trigger regression test:
+
+```bash
+npm run test:postgres
+```
+
+This test requires `server/.env` to contain `PG_CONNECTION_STRING`. It creates a temporary valid booking inside an explicit transaction, verifies fare calculation, overlapping-seat rejection, and the cancellation workflow, then executes `ROLLBACK` in all cases.
 
 With the API and client development servers running, verify the complete booking, payment, ticket, admin, and mobile navigation flows in a real browser:
 

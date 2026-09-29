@@ -116,6 +116,41 @@ test('cancellation refund tiers respect booking age and departure cutoff', async
   assert.equal(cancellationRefundPercent(80, 24), 0)
 })
 
+test('authentication rejects malformed email and phone input', async () => {
+  const malformedEmail = await requestRaw('/auth/register', {
+    method: 'POST',
+    body: {
+      fullName: 'Invalid Email',
+      email: 'not-an-email',
+      phone: '01712345678',
+      password: 'Passenger123!',
+      role: 'PASSENGER',
+    },
+  })
+  assert.equal(malformedEmail.status, 400)
+  assert.equal(malformedEmail.payload.error, 'A valid email address is required')
+
+  const malformedPhone = await requestRaw('/auth/register', {
+    method: 'POST',
+    body: {
+      fullName: 'Invalid Phone',
+      email: 'valid.phone@ferrovia.local',
+      phone: '12345',
+      password: 'Passenger123!',
+      role: 'PASSENGER',
+    },
+  })
+  assert.equal(malformedPhone.status, 400)
+  assert.match(malformedPhone.payload.error, /valid Bangladesh mobile number/i)
+
+  const malformedLogin = await requestRaw('/auth/login', {
+    method: 'POST',
+    body: { email: 'invalid', password: 'Passenger123!' },
+  })
+  assert.equal(malformedLogin.status, 400)
+  assert.equal(malformedLogin.payload.error, 'A valid email address is required')
+})
+
 test('public registration supports users and prevents admin role escalation', async () => {
   const session = await request('/auth/register', {
     method: 'POST',
@@ -129,6 +164,7 @@ test('public registration supports users and prevents admin role escalation', as
   })
 
   assert.equal(session.user.role, 'PASSENGER')
+  assert.equal(session.user.email, 'passenger.test@ferrovia.local')
   passengerToken = session.token
   const me = await request('/auth/me', { token: passengerToken })
   assert.equal(me.email, 'passenger.test@ferrovia.local')
@@ -143,6 +179,19 @@ test('public registration supports users and prevents admin role escalation', as
     },
   })
   assert.equal(adminRegistration.status, 400)
+
+  const duplicatePhone = await requestRaw('/auth/register', {
+    method: 'POST',
+    body: {
+      fullName: 'Duplicate Phone',
+      email: 'duplicate.phone@ferrovia.local',
+      phone: '+8801700000009',
+      password: 'Passenger123!',
+      role: 'PASSENGER',
+    },
+  })
+  assert.equal(duplicatePhone.status, 409)
+  assert.equal(duplicatePhone.payload.error, 'An account with this phone number already exists')
 
   const pendingOperator = await request('/auth/register', {
     method: 'POST',
@@ -253,6 +302,41 @@ test('passenger can search, reserve, pay, view and cancel a ticket', async () =>
   })
   assert.equal(paid.booking_status, 'CONFIRMED')
   assert.ok(paid.passengers[0].ticket_id)
+
+  const remainingSeats = await request(`/bookings/seats?${segment}&classId=${selectedClass.classId}`)
+  const duplicateReferenceSeat = remainingSeats.seats.find(seat => Number(seat.is_available) === 1)
+  assert.ok(duplicateReferenceSeat)
+  const duplicateReferenceBooking = await request('/bookings', {
+    method: 'POST',
+    token: passengerToken,
+    body: {
+      tripId: searchedTrip.trip_id,
+      sourceStationId: searchedTrip.source_station_id,
+      destinationStationId: searchedTrip.destination_station_id,
+      classId: selectedClass.classId,
+      passengers: [{
+        name: 'Duplicate Reference Passenger',
+        age: 30,
+        gender: 'OTHER',
+        tripSeatId: duplicateReferenceSeat.trip_seat_id,
+      }],
+    },
+  })
+  const duplicatePayment = await requestRaw(`/bookings/${duplicateReferenceBooking.pnr_number}/pay`, {
+    method: 'POST',
+    token: passengerToken,
+    body: { method: 'MOBILE_BANKING', transactionId: 'INTEGRATION-001' },
+  })
+  assert.equal(duplicatePayment.status, 409)
+  assert.equal(
+    duplicatePayment.payload.error,
+    'This transaction reference has already been used. Enter a different reference.'
+  )
+  const bookingAfterDuplicate = await request(`/bookings/${duplicateReferenceBooking.pnr_number}`, {
+    token: passengerToken,
+  })
+  assert.equal(bookingAfterDuplicate.booking_status, 'PENDING')
+  assert.equal(bookingAfterDuplicate.passengers[0].ticket_id, null)
 
   const mine = await request('/bookings/mine', { token: passengerToken })
   assert.ok(mine.some(item => item.pnr_number === bookingPnr))

@@ -1,6 +1,7 @@
-import { getDatabaseMode, withConnection, withTransaction } from '../config/database.js'
+import { getDatabaseMode, withTransaction } from '../config/database.js'
 import {
   cancelBooking,
+  cancelBookingWorkflow,
   createNotification,
   createRefundRequests,
 } from '../repositories/booking.repository.js'
@@ -29,7 +30,7 @@ export async function ensureUpcomingTrips(days = generationDays()) {
     return { skipped: true, reason: 'non-postgres database mode' }
   }
 
-  return withConnection(async connection => {
+  return withTransaction(async connection => {
     const before = await countUpcomingRows(connection, days)
 
     await connection.query(
@@ -272,13 +273,16 @@ async function cancelTripAndBookings(connection, tripId) {
 
   for (const booking of bookings.rows) {
     const refundsBefore = await refundCountForBooking(connection, booking.BOOKING_ID)
-    if (booking.BOOKING_STATUS === 'CONFIRMED') {
-      await createRefundRequests(connection, booking.BOOKING_ID)
+    if (getDatabaseMode() === 'postgres') {
+      await cancelBookingWorkflow(connection, booking.BOOKING_ID)
+    } else {
+      if (booking.BOOKING_STATUS === 'CONFIRMED') {
+        await createRefundRequests(connection, booking.BOOKING_ID)
+      }
+      await cancelBooking(connection, booking.BOOKING_ID)
     }
     const refundsAfter = await refundCountForBooking(connection, booking.BOOKING_ID)
     refundCount += refundsAfter - refundsBefore
-
-    await cancelBooking(connection, booking.BOOKING_ID)
     bookingCount += 1
 
     await createNotification(connection, {

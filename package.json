@@ -5,6 +5,7 @@
     "build": "npm --prefix client run build",
     "lint": "npm --prefix client run lint",
     "test": "npm --prefix server test",
+    "test:postgres": "npm --prefix server run test:postgres",
     "test:ui": "node scripts/ui-smoke.cjs",
     "test:ui:track": "node scripts/ui-track-smoke.cjs",
     "test:ui:admin": "node scripts/admin-assignment-smoke.cjs",

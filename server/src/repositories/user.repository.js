@@ -8,6 +8,16 @@ export async function findUserByEmail(connection, email) {
   return result.rows[0] || null
 }
 
+export async function findUserByPhone(connection, phone) {
+  const result = await connection.query(
+    `SELECT USER_ID, FULL_NAME, EMAIL, PHONE, PASSWORD_HASH, ROLE, ACCOUNT_STATUS, CREATED_AT
+       FROM USERS
+      WHERE PHONE = $1`,
+    [phone]
+  )
+  return result.rows[0] || null
+}
+
 export async function findUserById(connection, userId) {
   const result = await connection.query(
     `SELECT USER_ID, FULL_NAME, EMAIL, PHONE, ROLE, ACCOUNT_STATUS, CREATED_AT
