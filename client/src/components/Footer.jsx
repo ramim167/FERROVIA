@@ -1,52 +1,39 @@
 import { Icon } from './Icons'
+import Logo from './brand/Logo'
 
-export default function Footer({navigate}){
-  const go=p=>{
-    navigate?.(p);
-    window.scrollTo({top:0,behavior:'smooth'})
-  }
+const openAssistant = () => window.dispatchEvent(new CustomEvent('ferrovia:assistant'))
 
-  return <footer>
-    <div className="footer-glow"></div>
-
-    <div className="footer-grid">
-      <div>
+export default function Footer({ navigate }) {
+  const go = (p) => navigate?.(p)
+  return (
+    <footer className="footer">
+      <div className="footer-rail" aria-hidden="true"><span /><i /><i /><i /><i /></div>
+      <div className="footer-inner">
         <div className="footer-brand">
-          <span className="brand-mark">
-            <Icon name="train" size={20}/>
-          </span>
-          <b>FERROVIA</b>
+          <Logo variant="horizontal" />
+          <p>Search trains across Bangladesh, choose your seat and keep every e-ticket and journey update in one place.</p>
         </div>
-
-        <p>
-          A modern railway workspace for booking,
-          live operational tracking, trainset rotation and passenger support.
-        </p>
+        <nav className="footer-col" aria-label="Travel">
+          <b>Travel</b>
+          <button type="button" onClick={() => go('search')}>Book tickets</button>
+          <button type="button" onClick={() => go('track')}>Track a train</button>
+          <button type="button" onClick={() => go('tickets')}>My tickets</button>
+        </nav>
+        <nav className="footer-col" aria-label="Account">
+          <b>Account</b>
+          <button type="button" onClick={() => go('dashboard')}>Travel dashboard</button>
+          <button type="button" onClick={() => go('notifications')}>Notifications</button>
+        </nav>
+        <nav className="footer-col" aria-label="Help">
+          <b>Help</b>
+          <button type="button" onClick={() => go('support')}>Help centre</button>
+          <button type="button" onClick={openAssistant}>Ask Conduttore</button>
+        </nav>
       </div>
-
-      <div>
-        <b>Explore</b>
-        <button onClick={()=>go('home')}>Home</button>
-        <button onClick={()=>go('search')}>Book Ticket</button>
-        <button onClick={()=>go('track')}>Track Train</button>
+      <div className="footer-bottom">
+        <span>© 2026 FERROVIA · Bangladesh railway e-ticketing</span>
+        <span className="footer-bottom-meta"><Icon name="lock" size={14} /> Secure sign-in and booking</span>
       </div>
-
-      <div>
-        <b>Assistance</b>
-        <button onClick={()=>go('tickets')}>My Tickets</button>
-        <button onClick={()=>go('notifications')}>Notifications</button>
-        <button onClick={()=>go('support')}>Frequently Asked</button>
-      </div>
-
-      <div>
-        <b>Contact</b>
-        <span>☎ 16318</span>
-        <span>Dhaka, Bangladesh</span>
-      </div>
-    </div>
-
-    <div className="footer-bottom">
-      <span>© 2026 FERROVIA. Railway operations workspace.</span>
-    </div>
-  </footer>
+    </footer>
+  )
 }

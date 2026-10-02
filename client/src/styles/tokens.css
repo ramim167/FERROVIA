@@ -1,0 +1,473 @@
+/*
+ * FERROVIA design tokens
+ * ---------------------------------------------------------------
+ * Brand concept: rail movement, precision, connectivity, time, trust.
+ * Palette is rooted in Bangladesh's bottle green, with a signal-amber
+ * accent reserved for "now" moments: live status, destination nodes,
+ * the selected seat, the next departure.
+ *
+ * Every component reads from the semantic tokens below. Raw hex values
+ * should not appear anywhere else in the stylesheet.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* ---- Primitive palette (do not use directly in components) ---- */
+  --green-950: #04231a;
+  --green-900: #073528;
+  --green-800: #0a4636;
+  --green-700: #0b5d46;
+  --green-600: #0e7457;
+  --green-500: #17926d;
+  --green-400: #46c08f;
+  --green-200: #b9e3cf;
+  --green-100: #dff1e8;
+  --green-50: #eff7f3;
+
+  --amber-600: #b26f0b;
+  --amber-500: #e09a1e;
+  --amber-400: #f2b544;
+  --amber-100: #fcefd4;
+
+  --red-700: #a3231f;
+  --red-600: #c8322f;
+  --red-400: #ef6b62;
+  --red-100: #fbe3e1;
+
+  --blue-700: #1f4f8a;
+  --blue-600: #2d6cb5;
+  --blue-400: #6ea4e6;
+  --blue-100: #e2ecf8;
+
+  --slate-950: #0a1411;
+  --slate-900: #10201b;
+  --slate-800: #1b2d27;
+  --slate-700: #33453f;
+  --slate-600: #4c5d57;
+  --slate-500: #6a7a74;
+  --slate-400: #8f9d98;
+  --slate-300: #c3ccc8;
+  --slate-200: #dce3de;
+  --slate-150: #e7ece8;
+  --slate-100: #eef2ef;
+  --slate-50: #f3f5f2;
+
+  /* ---- Semantic color ---- */
+  --color-bg: var(--slate-50);
+  --color-bg-subtle: #f7f9f6;
+  --color-surface: #ffffff;
+  --color-surface-elevated: #ffffff;
+  --color-surface-sunken: var(--slate-100);
+  --color-surface-hover: #f6f8f6;
+  --color-surface-inverse: var(--green-950);
+
+  --color-border: var(--slate-200);
+  --color-border-subtle: var(--slate-150);
+  --color-border-strong: var(--slate-300);
+
+  --color-text: var(--slate-900);
+  --color-text-secondary: var(--slate-600);
+  --color-text-muted: #586b62;
+  --color-text-inverse: #f2f7f4;
+  --color-text-on-brand: #ffffff;
+
+  --color-brand: var(--green-700);
+  --color-brand-hover: var(--green-800);
+  --color-brand-pressed: var(--green-900);
+  --color-brand-soft: var(--green-50);
+  --color-brand-soft-strong: var(--green-100);
+  --color-brand-text: var(--green-700);
+
+  --color-accent: var(--amber-500);
+  --color-accent-strong: var(--amber-600);
+  --color-accent-soft: var(--amber-100);
+  --color-accent-text: #8a5508;
+
+  --color-success: #1e8a57;
+  --color-success-soft: #e1f3e9;
+  --color-success-text: #166b43;
+  --color-warning: var(--amber-500);
+  --color-warning-soft: var(--amber-100);
+  --color-warning-text: #865106;
+  --color-danger: var(--red-600);
+  --color-danger-hover: var(--red-700);
+  --color-danger-soft: var(--red-100);
+  --color-danger-text: #a3231f;
+  --color-info: var(--blue-600);
+  --color-info-soft: var(--blue-100);
+  --color-info-text: var(--blue-700);
+
+  --color-focus: #1d7de0;
+  --color-focus-ring: rgba(29, 125, 224, 0.32);
+  --color-overlay: rgba(4, 20, 15, 0.52);
+  --color-selection: var(--green-100);
+
+  /* Rail graphics */
+  --rail: var(--slate-300);
+  --rail-active: var(--color-brand);
+  --node: var(--color-surface);
+
+  /* Cinematic / hero surfaces (always dark, in both themes) */
+  --stage-bg: #06190f;
+  --stage-bg-2: #0a2a1f;
+  --stage-line: rgba(185, 227, 207, 0.16);
+  --stage-line-strong: rgba(185, 227, 207, 0.42);
+  --stage-text: #eef6f1;
+  --stage-text-muted: rgba(226, 240, 233, 0.66);
+
+  /* ---- Typography ---- */
+  --font-sans: "Manrope Variable", "Manrope", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-numeric: var(--font-sans);
+
+  --text-display: clamp(2.6rem, 1.6rem + 3.6vw, 4.6rem);
+  --text-h1: clamp(2rem, 1.5rem + 1.7vw, 2.85rem);
+  --text-h2: clamp(1.45rem, 1.2rem + 0.9vw, 1.9rem);
+  --text-h3: 1.2rem;
+  --text-h4: 1.02rem;
+  --text-body: 1rem;
+  --text-body-sm: 0.9rem;
+  --text-label: 0.84rem;
+  --text-caption: 0.78rem;
+  --text-overline: 0.72rem;
+  --text-stat: clamp(1.6rem, 1.3rem + 1vw, 2.1rem);
+  --text-timetable: clamp(1.35rem, 1.15rem + 0.7vw, 1.75rem);
+
+  --leading-tight: 1.08;
+  --leading-snug: 1.25;
+  --leading-body: 1.55;
+
+  --tracking-display: -0.035em;
+  --tracking-heading: -0.022em;
+  --tracking-overline: 0.12em;
+
+  --weight-regular: 450;
+  --weight-medium: 560;
+  --weight-semibold: 650;
+  --weight-bold: 750;
+  --weight-heavy: 820;
+
+  /* ---- Spacing (4px base) ---- */
+  --space-0: 0;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-7: 2rem;
+  --space-8: 2.5rem;
+  --space-9: 3rem;
+  --space-10: 4rem;
+  --space-11: 5rem;
+  --space-12: 6.5rem;
+
+  --page-max: 1240px;
+  --page-gutter: clamp(1rem, 0.5rem + 2.4vw, 2.25rem);
+  --nav-height: 68px;
+  --sidebar-width: 264px;
+  --sidebar-width-collapsed: 76px;
+
+  /* ---- Radius ---- */
+  --radius-xs: 6px;
+  --radius-sm: 9px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+  --radius-2xl: 28px;
+  --radius-pill: 999px;
+
+  /* ---- Elevation ---- */
+  --shadow-xs: 0 1px 2px rgba(10, 32, 25, 0.06);
+  --shadow-sm: 0 1px 2px rgba(10, 32, 25, 0.05), 0 2px 8px rgba(10, 32, 25, 0.05);
+  --shadow-md: 0 2px 4px rgba(10, 32, 25, 0.04), 0 10px 26px rgba(10, 32, 25, 0.08);
+  --shadow-lg: 0 6px 14px rgba(10, 32, 25, 0.06), 0 24px 56px rgba(10, 32, 25, 0.14);
+  --shadow-brand: 0 6px 18px rgba(11, 93, 70, 0.26);
+  --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+
+  /* ---- Motion ---- */
+  --duration-instant: 90ms;
+  --duration-fast: 150ms;
+  --duration-normal: 240ms;
+  --duration-slow: 420ms;
+  --duration-slower: 700ms;
+
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.55, 0, 1, 0.45);
+  --ease-spring: cubic-bezier(0.34, 1.36, 0.64, 1);
+  --ease-rail: cubic-bezier(0.65, 0, 0.35, 1);
+
+  /* ---- Layers ---- */
+  --z-base: 1;
+  --z-sticky: 20;
+  --z-nav: 40;
+  --z-dropdown: 60;
+  --z-drawer: 80;
+  --z-modal: 100;
+  --z-toast: 120;
+  --z-assistant: 90;
+  --z-intro: 200;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-bg: #08120f;
+  --color-bg-subtle: #0b1713;
+  --color-surface: #0f1c18;
+  --color-surface-elevated: #14241f;
+  --color-surface-sunken: #0b1613;
+  --color-surface-hover: #172a24;
+  --color-surface-inverse: #e9f2ee;
+
+  --color-border: #213530;
+  --color-border-subtle: #192b26;
+  --color-border-strong: #334b44;
+
+  --color-text: #e7efeb;
+  --color-text-secondary: #b3c3bc;
+  --color-text-muted: #8a9c95;
+  --color-text-inverse: #0b1613;
+  --color-text-on-brand: #04231a;
+
+  --color-brand: var(--green-400);
+  --color-brand-hover: #63d1a4;
+  --color-brand-pressed: #37a97b;
+  --color-brand-soft: rgba(70, 192, 143, 0.1);
+  --color-brand-soft-strong: rgba(70, 192, 143, 0.18);
+  --color-brand-text: #6fd3a9;
+
+  --color-accent: var(--amber-400);
+  --color-accent-strong: #f6c56a;
+  --color-accent-soft: rgba(242, 181, 68, 0.13);
+  --color-accent-text: #f4c467;
+
+  --color-success: #4cc08a;
+  --color-success-soft: rgba(76, 192, 138, 0.12);
+  --color-success-text: #74d3a5;
+  --color-warning: var(--amber-400);
+  --color-warning-soft: rgba(242, 181, 68, 0.12);
+  --color-warning-text: #f4c467;
+  --color-danger: var(--red-400);
+  --color-danger-hover: #f4857d;
+  --color-danger-soft: rgba(239, 107, 98, 0.13);
+  --color-danger-text: #f59a93;
+  --color-info: var(--blue-400);
+  --color-info-soft: rgba(110, 164, 230, 0.13);
+  --color-info-text: #9cc2ef;
+
+  --color-focus: #7cb7f5;
+  --color-focus-ring: rgba(124, 183, 245, 0.36);
+  --color-overlay: rgba(1, 8, 6, 0.7);
+  --color-selection: rgba(70, 192, 143, 0.3);
+
+  --rail: #2c433c;
+  --node: var(--color-surface);
+
+  --stage-bg: #040f0b;
+  --stage-bg-2: #082019;
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.22);
+  --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.25), 0 12px 28px rgba(0, 0, 0, 0.32);
+  --shadow-lg: 0 8px 18px rgba(0, 0, 0, 0.32), 0 28px 64px rgba(0, 0, 0, 0.5);
+  --shadow-brand: 0 6px 20px rgba(70, 192, 143, 0.2);
+  --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-instant: 0ms;
+    --duration-fast: 0ms;
+    --duration-normal: 0ms;
+    --duration-slow: 0ms;
+    --duration-slower: 0ms;
+  }
+}
+
+/* Theme-aware railway environment and livery paints. */
+:root {
+  --scene-paint-1: rgba(242, 181, 68, 0.22);
+  --scene-paint-2: rgba(70, 192, 143, 0.16);
+  --scene-paint-3: rgba(255, 223, 160, 0.9);
+  --scene-paint-4: rgba(255, 198, 110, 0.35);
+  --scene-paint-5: #fff;
+  --scene-paint-6: #e8f6ef;
+  --scene-paint-7: #dff1e8;
+  --scene-paint-8: rgba(255, 255, 255, 0.04);
+  --scene-paint-9: rgba(255, 255, 255, 0.03);
+  --scene-paint-10: rgba(0, 0, 0, 0.5);
+  --scene-paint-11: rgba(0, 0, 0, 0.55);
+  --scene-paint-12: rgba(255, 240, 200, 0.95);
+  --scene-paint-13: rgba(226, 244, 236, 0.5);
+  --scene-paint-14: rgba(0, 0, 0, 0.45);
+  --scene-paint-15: rgba(242, 181, 68, 0);
+  --scene-paint-16: rgba(242, 181, 68, 0.9);
+  --scene-paint-17: rgba(255, 255, 255, 0.06);
+  --scene-paint-18: rgba(255, 255, 255, 0.22);
+  --scene-paint-19: rgba(6, 25, 15, 0.45);
+  --scene-paint-20: rgba(255, 255, 255, 0.12);
+  --scene-paint-21: rgba(255, 255, 255, 0.4);
+  --train-paint-1: #7f8f8a;
+  --train-paint-2: #6c7c77;
+  --train-paint-3: #c9d3cf;
+  --train-paint-4: #1f2a27;
+  --train-paint-5: #37443f;
+  --train-paint-6: #c2a15a;
+  --train-paint-7: #b9c4c0;
+  --train-paint-8: #93a19c;
+  --train-paint-9: #cfd8d4;
+  --train-paint-10: #e9a72e;
+  --train-paint-11: #1a2522;
+  --train-paint-12: #fff;
+  --train-paint-13: #9aa8a3;
+  --train-paint-14: #eaf4ef;
+  --train-paint-15: #26302d;
+  --train-paint-16: #2f3a36;
+  --train-paint-17: #27322f;
+  --train-paint-18: #aab6b1;
+  --train-paint-19: #8a9893;
+  --train-paint-20: #d7dfdb;
+  --train-paint-21: #141e1b;
+  --train-paint-22: #5c6a65;
+  --train-paint-23: #a5b2ad;
+  --train-paint-24: #a3b0ab;
+  --train-paint-25: #063325;
+  --train-paint-26: #f2b544;
+  --train-paint-27: #eef6f1;
+  --train-paint-28: #fff6dc;
+  --train-paint-29: #ff5c4a;
+  --train-paint-30: #f7faf8;
+  --train-paint-31: #e3e9e6;
+  --train-paint-32: #c6d0cc;
+  --train-paint-33: #0f7a5a;
+  --train-paint-34: #0a4d3a;
+  --train-paint-35: #355a63;
+  --train-paint-36: #0d1a1d;
+  --train-paint-37: #2a3431;
+  --train-paint-38: #151c1a;
+  --train-paint-39: #fff3cf;
+  --scene-horizon: #fcefd4;
+  --scene-hills: #a9cdb9;
+  --scene-city: #8fbaa6;
+  --scene-city-windows: #97b9ab;
+  --scene-palms: #4f8a6c;
+  --scene-posts: #5f7d70;
+  --scene-ground-top: #a2b5a4;
+  --scene-ground-bottom: #718e7c;
+  --scene-sleepers: #697768;
+  --scene-rail-light: #f1f7f4;
+  --scene-rail-dark: #71897e;
+  --scene-rail-front: #e6efea;
+  --scene-rail-front-dark: #6d8276;
+  --scene-sky-top: #cfe6f3;
+  --scene-sky-mid: #e7f2ee;
+  --scene-sun: #fff8db;
+  --scene-glow: rgba(255,232,172,.65);
+  --scene-stars-opacity: 0;
+  --scene-clouds-opacity: .8;
+  --scene-cloud: #ffffff;
+  --scene-window-opacity: 0;
+  --train-window-top: #a6d1e1;
+  --train-window-bottom: #568596;
+  --train-window-glow: transparent;
+  --train-beam-opacity: .04;
+  --hero-text: #102d25;
+  --hero-text-muted: #405e54;
+  --hero-chip-bg: rgba(255,255,255,.65);
+  --hero-chip-border: rgba(56,95,78,.18);
+  --hero-overlay: rgba(238,248,247,.6);
+}
+:root[data-theme="dark"] {
+  --scene-paint-1: rgba(242, 181, 68, 0.22);
+  --scene-paint-2: rgba(70, 192, 143, 0.16);
+  --scene-paint-3: rgba(255, 223, 160, 0.9);
+  --scene-paint-4: rgba(255, 198, 110, 0.35);
+  --scene-paint-5: #fff;
+  --scene-paint-6: #e8f6ef;
+  --scene-paint-7: #dff1e8;
+  --scene-paint-8: rgba(255, 255, 255, 0.04);
+  --scene-paint-9: rgba(255, 255, 255, 0.03);
+  --scene-paint-10: rgba(0, 0, 0, 0.5);
+  --scene-paint-11: rgba(0, 0, 0, 0.55);
+  --scene-paint-12: rgba(255, 240, 200, 0.95);
+  --scene-paint-13: rgba(226, 244, 236, 0.5);
+  --scene-paint-14: rgba(0, 0, 0, 0.45);
+  --scene-paint-15: rgba(242, 181, 68, 0);
+  --scene-paint-16: rgba(242, 181, 68, 0.9);
+  --scene-paint-17: rgba(255, 255, 255, 0.06);
+  --scene-paint-18: rgba(255, 255, 255, 0.22);
+  --scene-paint-19: rgba(6, 25, 15, 0.45);
+  --scene-paint-20: rgba(255, 255, 255, 0.12);
+  --scene-paint-21: rgba(255, 255, 255, 0.4);
+  --train-paint-1: #7f8f8a;
+  --train-paint-2: #6c7c77;
+  --train-paint-3: #c9d3cf;
+  --train-paint-4: #1f2a27;
+  --train-paint-5: #37443f;
+  --train-paint-6: #c2a15a;
+  --train-paint-7: #b9c4c0;
+  --train-paint-8: #93a19c;
+  --train-paint-9: #cfd8d4;
+  --train-paint-10: #e9a72e;
+  --train-paint-11: #1a2522;
+  --train-paint-12: #fff;
+  --train-paint-13: #9aa8a3;
+  --train-paint-14: #eaf4ef;
+  --train-paint-15: #26302d;
+  --train-paint-16: #2f3a36;
+  --train-paint-17: #27322f;
+  --train-paint-18: #aab6b1;
+  --train-paint-19: #8a9893;
+  --train-paint-20: #d7dfdb;
+  --train-paint-21: #141e1b;
+  --train-paint-22: #5c6a65;
+  --train-paint-23: #a5b2ad;
+  --train-paint-24: #a3b0ab;
+  --train-paint-25: #063325;
+  --train-paint-26: #f2b544;
+  --train-paint-27: #eef6f1;
+  --train-paint-28: #fff6dc;
+  --train-paint-29: #ff5c4a;
+  --train-paint-30: #f7faf8;
+  --train-paint-31: #e3e9e6;
+  --train-paint-32: #c6d0cc;
+  --train-paint-33: #0f7a5a;
+  --train-paint-34: #0a4d3a;
+  --train-paint-35: #355a63;
+  --train-paint-36: #0d1a1d;
+  --train-paint-37: #2a3431;
+  --train-paint-38: #151c1a;
+  --train-paint-39: #fff3cf;
+  --scene-horizon: #123a2c;
+  --scene-hills: #0b2c21;
+  --scene-city: #0e3427;
+  --scene-city-windows: #f2c26b;
+  --scene-palms: #072118;
+  --scene-posts: #0a281e;
+  --scene-ground-top: #0b241b;
+  --scene-ground-bottom: #06150f;
+  --scene-sleepers: #3a2f25;
+  --scene-rail-light: #8c9b96;
+  --scene-rail-dark: #4a5652;
+  --scene-rail-front: #c9d4d0;
+  --scene-rail-front-dark: #5b6763;
+  --scene-sky-top: #040f0b;
+  --scene-sky-mid: #082019;
+  --scene-sun: #f7e6b8;
+  --scene-glow: rgba(255,198,110,.2);
+  --scene-stars-opacity: .8;
+  --scene-clouds-opacity: 0;
+  --scene-cloud: #c4d6db;
+  --scene-window-opacity: .75;
+  --train-window-top: #ffe9b8;
+  --train-window-bottom: #f2b860;
+  --train-window-glow: rgba(255,210,130,.35);
+  --train-beam-opacity: .9;
+  --hero-text: #eef6f1;
+  --hero-text-muted: #b8cfc3;
+  --hero-chip-bg: rgba(255,255,255,.07);
+  --hero-chip-border: rgba(255,255,255,.16);
+  --hero-overlay: rgba(4,15,11,.55);
+}

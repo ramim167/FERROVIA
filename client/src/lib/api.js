@@ -34,6 +34,10 @@ export async function api(path, options={}){
     const error = new Error(`${message}${debug}`)
     error.status = response.status
     error.details = payload?.details
+    if (response.status === 401 && !path.startsWith('/auth/')) {
+      clearSession()
+      window.dispatchEvent(new Event('ferrovia:session-expired'))
+    }
     throw error
   }
   return payload?.data ?? payload

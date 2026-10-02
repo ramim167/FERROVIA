@@ -2,13 +2,41 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>FERROVIA · Bangladesh railway e-ticketing</title>
+    <meta name="description" content="Search trains across Bangladesh, choose your seat, book your e-ticket and follow your journey with FERROVIA." />
+    <meta name="theme-color" content="#f3f5f2" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>FERROVIA — Bangladesh Railway E-Ticketing</title>
-    <script type="module" crossorigin src="/assets/index-B3IP3MfE.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-DdtGq4ZF.css">
+    <link rel="icon" type="image/png" sizes="32x32" href="/brand/icon-32.png" />
+    <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="preload" href="/assets/manrope-latin-wght-normal-DHIcAJRg.woff2" as="font" type="font/woff2" crossorigin />
+    <script>
+      // Apply the saved or system theme before first paint to avoid a flash.
+      try {
+        var t = localStorage.getItem('ferrovia-theme');
+        if (t !== 'light' && t !== 'dark') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        document.documentElement.dataset.theme = t;
+      } catch (e) {}
+    </script>
+    <style>
+      /* Instant boot screen shown until React mounts (no network dependency). */
+      html { background: #f3f5f2; }
+      html[data-theme="dark"] { background: #08120f; }
+      #boot { position: fixed; inset: 0; display: grid; place-items: center; }
+      #boot svg { width: 56px; height: 56px; animation: boot 1.2s ease-in-out infinite alternate; }
+      @keyframes boot { from { opacity: .45; transform: scale(.96); } to { opacity: 1; transform: none; } }
+      @media (prefers-reduced-motion: reduce) { #boot svg { animation: none; } }
+    </style>
+    <script type="module" crossorigin src="/assets/index-BRCNwvv2.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/jsx-runtime-QtymfJMM.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-R3nfUu9X.css">
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="boot" aria-label="Loading FERROVIA" role="status">
+        <svg viewBox="0 0 48 48" aria-hidden="true"><rect width="48" height="48" rx="13" fill="#0b5d46"/><path d="M17 35.5V20a7.5 7.5 0 0 1 7.5-7.5H32" fill="none" stroke="#fff" stroke-width="4.2" stroke-linecap="round"/><path d="M17 24.5H27" fill="none" stroke="#fff" stroke-width="4.2" stroke-linecap="round"/><circle cx="17" cy="35.5" r="3.3" fill="#0b5d46" stroke="#fff" stroke-width="2.6"/><circle cx="27" cy="24.5" r="2.9" fill="#0b5d46" stroke="#fff" stroke-width="2.6"/><circle cx="32.5" cy="12.5" r="3.9" fill="#f2b544"/></svg>
+      </div>
+    </div>
   </body>
 </html>

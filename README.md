@@ -2,6 +2,16 @@
 
 FERROVIA is a full-stack railway e-ticketing and operations system. It combines passenger booking, segment-aware seat reservation, ticket management, operator station updates, database-derived live train status, spare trainset rotation, notifications, and an admin workspace in one project.
 
+## Living railway interface
+
+The client now has a daylight/night railway environment built with SVG and CSS: arrival transitions into ambient travel, clouds and stars follow the theme, and occasional distant trains move across the scenery. Fine-pointer parallax is subtle. Offscreen/hidden-tab pausing and a fully static reduced-motion mode are built in.
+
+Run `npm run dev:memory`, then open `http://localhost:5173/?intro=0` to skip the cinematic intro or `?intro=1` to replay it. Deep links use hashes such as `/#/tickets`, `/#/track` and `/#/admin/cancellations`. Direct entry to a booking step returns to search because seat holds and booking selections require an active flow.
+
+UI code lives in `client/src/pages`, shared controls in `components/ui`, railway artwork in `components/brand`, and service-form sections in `components/admin`. Semantic tokens and layout styles live in `src/styles`; `atmosphere.css` supplies theme-aware surfaces and ambient shell motion. The self-hosted font dependency is `@fontsource-variable/manrope`. See [the design system](client/DESIGN_SYSTEM.md) for component usage and motion rules.
+
+The root development dependency `@axe-core/playwright` supports accessibility audits. Run `npm run test:design`, `npm run test:booking-design` and `npm run test:motion` against the local memory server; reports, screenshots and printable PDFs are written to `artifacts/`. These are local QA artifacts, not deployed assets. `CHROME_PATH` can select a browser; otherwise scripts look for bundled Chromium and then installed Chrome/Edge. `client/dist` remains compatible with the repository's existing tracked-build workflow; `.gitignore` already excludes new generated build files.
+
 ## Project Status
 
 Last verified: **29 September 2026**.

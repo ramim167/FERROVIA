@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Icon } from './Icons'
+import { EmptyState, SkeletonRows, StatusBadge } from './ui/Feedback'
+import { PageHeader, Tabs } from './ui/Layout'
 import { api } from '../lib/api'
 
 
@@ -204,38 +205,24 @@ export default function AdminEditTrain({
 
     if (user?.role !== 'ADMIN') {
         return (
-            <main className="page">
-                <div className="card access-card">
-                    <Icon name="shield" size={36} />
-                    <h2>Admin access required</h2>
-                    <p>
-                        Only ADMIN accounts can edit train information.
-                    </p>
-                </div>
+            <main className="page page-enter">
+                <div className="card"><EmptyState icon="lock" title="Admin access required" description="Only admin accounts can edit train information." /></div>
             </main>
         )
     }
 
     return (
-        <main className="page">
-
-            <div className="page-title">
-                <span className="eyebrow">
-                    ADMIN • TRAIN MANAGEMENT
-                </span>
-
-                <h1>Edit Existing Train</h1>
-
-                <p>
-                    Update service and route information, then inspect its
-                    trainsets, fares, coaches and seats.
-                </p>
-            </div>
+        <main className="page page-enter ws-page">
+            <PageHeader
+                crumbs={['Admin', 'Train management', 'Edit train']}
+                title="Edit a train"
+                description="Update service and route information, then inspect its trainsets, fares, coaches and seats."
+            />
 
             <section className="card admin-train-selector">
 
                 <label>
-                    Select train
+                    Train service
 
                     <select
                         value={selectedTrainId}
@@ -278,20 +265,11 @@ export default function AdminEditTrain({
             </section>
 
             {!selectedTrainId &&
-                <section className="card empty">
-                    <Icon name="train" size={40} />
-                    <h2>Select a train</h2>
-                    <p>
-                        Select a train to inspect and edit its configuration.
-                    </p>
-                </section>
+                <section className="card"><EmptyState icon="train" title="Choose a train to edit" description="Pick a service above to see its routes, timetable, trainsets, fares and coaches." /></section>
             }
             {detailsLoading &&
-                <section className="card empty">
-                    <p>Loading train configuration...</p>
-                </section>
+                <section className="card"><SkeletonRows rows={4} /></section>
             }
-
 
             {trainData && !detailsLoading &&
                 <section className="card admin-edit-heading">
@@ -299,19 +277,17 @@ export default function AdminEditTrain({
                     <div>
 
                         <span className="eyebrow">
-                            TRAIN #{trainData.train.train_id}
+                            Train #{trainData.train.train_id}
                         </span>
 
                         <h2>
                             {trainData.train.train_name}
                         </h2>
 
-                        <p>
-                            {trainData.train.train_code}
-                            {' • '}
-                            {trainData.train.train_type}
-                            {' • '}
-                            {trainData.train.train_status}
+                        <p className="admin-edit-meta">
+                            <span className="t-code">{trainData.train.train_code}</span>
+                            <span>{trainData.train.train_type}</span>
+                            <StatusBadge status={trainData.train.train_status} />
                         </p>
 
                     </div>
@@ -319,45 +295,20 @@ export default function AdminEditTrain({
                 </section>
             }
             {trainData && !detailsLoading &&
-                <div className="admin-edit-tabs">
-
-                    <button
-                        className={activeTab === 'basic' ? 'active' : ''}
-                        onClick={() => setActiveTab('basic')}
-                    >
-                        Basic Info
-                    </button>
-
-                    <button
-                        className={activeTab === 'routes' ? 'active' : ''}
-                        onClick={() => setActiveTab('routes')}
-                    >
-                        Routes & Schedule
-                    </button>
-
-                    <button
-                        className={activeTab === 'trainsets' ? 'active' : ''}
-                        onClick={() => setActiveTab('trainsets')}
-                    >
-                        Trainsets
-                    </button>
-
-                    <button
-                        className={activeTab === 'fares' ? 'active' : ''}
-                        onClick={() => setActiveTab('fares')}
-                    >
-                        Fares
-                    </button>
-
-                    <button
-                        className={activeTab === 'coaches' ? 'active' : ''}
-                        onClick={() => setActiveTab('coaches')}
-                    >
-                        Coaches & Seats
-                    </button>
-
-                </div>
+                <Tabs id="edit-train"
+                    value={activeTab}
+                    onChange={setActiveTab}
+                    label="Train configuration"
+                    tabs={[
+                        { id: 'basic', label: 'Basic info', icon: 'info' },
+                        { id: 'routes', label: 'Routes & schedule', icon: 'route', count: trainData.routes.length },
+                        { id: 'trainsets', label: 'Trainsets', icon: 'train', count: trainData.trainsets.length },
+                        { id: 'fares', label: 'Fares', icon: 'wallet', count: trainData.fares.length },
+                        { id: 'coaches', label: 'Coaches & seats', icon: 'seat', count: trainData.coaches.length },
+                    ]}
+                />
             }
+            <div role="tabpanel" id="edit-train-panel" aria-labelledby={`edit-train-tab-${activeTab}`} tabIndex={0}>
             {trainData && !detailsLoading && activeTab === 'basic' &&
 
                 <form
@@ -484,8 +435,8 @@ export default function AdminEditTrain({
                     >
 
                         {savingBasic
-                            ? 'Saving...'
-                            : 'Save Changes'}
+                            ? 'Saving…'
+                            : 'Save changes'}
 
                     </button>
 
@@ -508,17 +459,7 @@ export default function AdminEditTrain({
 
 
                     {trainData.routes.length === 0 &&
-                        <section className="card empty">
-
-                            <Icon name="train" size={36} />
-
-                            <h3>No routes configured</h3>
-
-                            <p>
-                                This train currently has no route definition.
-                            </p>
-
-                        </section>
+                        <section className="card"><EmptyState compact icon="route" title="No routes configured" description="This train currently has no route definition." /></section>
                     }
 
 
@@ -554,7 +495,7 @@ export default function AdminEditTrain({
                                 <div>
 
                                     <span className="eyebrow">
-                                        {route.direction} ROUTE
+                                        {route.direction === 'UP' ? 'Up' : route.direction === 'DOWN' ? 'Down' : route.direction} route
                                     </span>
 
                                     <h2>
@@ -696,7 +637,7 @@ export default function AdminEditTrain({
                                     <b>{trainset.trainset_code}</b>
                                     <small>Trainset #{trainset.trainset_id}</small>
                                 </div>
-                                <strong>{trainset.status}</strong>
+                                <StatusBadge status={trainset.status} />
                                 <span>{trainset.current_station || 'In service'}</span>
                             </article>
                         ))}
@@ -753,6 +694,7 @@ export default function AdminEditTrain({
                 </section>
             }
 
+            </div>
         </main>
     )
 }

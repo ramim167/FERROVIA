@@ -2,28 +2,20 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import DatePicker from './DatePicker'
 import { Icon } from './Icons'
 import { api } from '../lib/api'
+import { Button } from './ui/Button'
+import { Badge, EmptyState, StatusBadge } from './ui/Feedback'
+import { PageHeader } from './ui/Layout'
 
-const pad = n => String(n).padStart(2, '0')
-const localToday = () => {
-  const d = new Date()
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-}
-const fmtTime = value => value
-  ? new Date(value).toLocaleTimeString('en-BD', { hour: '2-digit', minute: '2-digit' })
-  : '-'
-const fmtDate = value => value
-  ? new Date(value).toLocaleDateString('en-BD', {
-      day: '2-digit', month: 'short', year: 'numeric',
-    })
-  : '-'
+import { fmtTime, fmtDate, localToday } from '../lib/format'
+
 const delayText = value => Number(value) > 0 ? `${value} min late` : 'On time'
 const departurePassed = (trip, now) => {
   const departureTime = new Date(trip?.scheduled_departure).getTime()
   return Number.isFinite(departureTime) && departureTime <= now
 }
 const departureMinutes = trip => {
-  const departure = new Date(trip?.scheduled_departure)
-  return departure.getHours() * 60 + departure.getMinutes()
+  const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Dhaka', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(trip.scheduled_departure)).split(':').map(Number)
+  return parts[0] * 60 + parts[1]
 }
 
 export default function AdminAssignTrip({ user, handleError, setToast }) {
@@ -164,29 +156,26 @@ export default function AdminAssignTrip({ user, handleError, setToast }) {
 
   if (!allowed) {
     return (
-      <main className="page">
-        <div className="empty card access-card">
-          <Icon name="shield" size={44} />
-          <h2>Admin access required</h2>
-          <p>Trip and trainset assignment is restricted to ADMIN accounts.</p>
-        </div>
+      <main className="page page-enter">
+        <div className="card"><EmptyState icon="lock" title="Admin access required" description="Trip and trainset assignment is restricted to admin accounts." /></div>
       </main>
     )
   }
 
   return (
-    <main className="page">
-      <div className="page-title">
-        <span className="eyebrow">ADMIN / OPERATIONS</span>
-        <h1>Trip assignments</h1>
-        <p>Select an issued trip, reserve an available physical trainset, and assign its operator.</p>
-      </div>
+    <main className="page page-enter ws-page">
+      <PageHeader
+        crumbs={['Admin', 'Operations', 'Trips & trainsets']}
+        title="Trip assignments"
+        description="Select an issued trip, reserve an available physical trainset, and assign its operator."
+        actions={<Button variant="secondary" icon="refresh" onClick={reload} loading={loading}>Refresh</Button>}
+      />
 
       <section className="admin-grid assignment-workspace">
         <section className="card issued-trip-card">
           <div className="section-head">
             <div>
-              <span className="eyebrow">ISSUED TRIPS</span>
+              <span className="eyebrow"><Icon name="layers" size={15} /> Issued trips</span>
               <h2>Select a trip</h2>
             </div>
             <div className="assignment-date-actions">
@@ -201,7 +190,6 @@ export default function AdminAssignTrip({ user, handleError, setToast }) {
                 onChange={setTimeFilter}
                 ariaLabel="Filter issued trips from time"
               />
-              <button className="secondary compact" onClick={reload} disabled={loading}>Refresh</button>
             </div>
           </div>
           <div className="issued-trip-list">
@@ -224,7 +212,7 @@ export default function AdminAssignTrip({ user, handleError, setToast }) {
                     <b>{fmtTime(trip.scheduled_departure)}</b>
                     <small>{trip.source_station} → {trip.destination_station}</small>
                   </span>
-                  <strong>{expired ? 'CLOSED' : trip.trip_status}</strong>
+                  <StatusBadge status={expired ? 'CLOSED' : trip.trip_status} />
                 </button>
               )
             })}
@@ -239,7 +227,7 @@ export default function AdminAssignTrip({ user, handleError, setToast }) {
         <section className="card fleet-card trainset-assignment-card">
           <div className="section-head">
             <div>
-              <span className="eyebrow">TRAINSET ASSIGNMENT</span>
+              <span className="eyebrow"><Icon name="train" size={15} /> Trainset assignment</span>
               <h2>Assign a physical trainset</h2>
             </div>
           </div>
@@ -286,7 +274,7 @@ export default function AdminAssignTrip({ user, handleError, setToast }) {
                 <b>{selectedTrip.train_name} · #{selectedTrip.trip_id}</b>
                 <small>{selectedTrip.source_station} → {selectedTrip.destination_station}</small>
               </div>
-              <strong>{selectedTrip.assigned_trainset_code || 'No trainset assigned'}</strong>
+              {selectedTrip.assigned_trainset_code ? <Badge tone="brand" dot>{selectedTrip.assigned_trainset_code}</Badge> : <Badge tone="warning" dot>No trainset assigned</Badge>}
             </div>
           )}
 
@@ -301,10 +289,11 @@ export default function AdminAssignTrip({ user, handleError, setToast }) {
                     <b>{trainset.trainset_code}</b>
                     <small>{trainset.train_name}</small>
                   </div>
-                  <strong>{trainset.status}</strong>
+                  <StatusBadge status={trainset.status} />
                   <span>{trainset.current_station || 'Location not set'}</span>
                   <button
                     type="button"
+                    className={`btn btn-sm ${assigned ? 'btn-tertiary' : 'btn-primary'}`}
                     disabled={selectedTripExpired || assigned || assigningTrainsetId !== null}
                     onClick={() => assignTrainset(trainset)}
                   >
@@ -433,10 +422,10 @@ function AdminTripRow({ trip, operators, assign, assigning, now }) {
 
   return (
     <tr className={expired ? 'expired-trip' : ''}>
-      <td><b>#{trip.trip_id}</b><br /><small>{trip.train_name}</small></td>
+      <td><b className="t-num">#{trip.trip_id}</b><br /><small>{trip.train_name}</small></td>
       <td>{trip.direction}<br /><small>{trip.source_station} → {trip.destination_station}</small></td>
       <td>{fmtTime(trip.scheduled_departure)}<br /><small>{fmtDate(trip.scheduled_departure)}</small></td>
-      <td>{trip.trip_status}<br /><small>{delayText(trip.current_delay_minutes)}</small></td>
+      <td><StatusBadge status={expired ? 'CLOSED' : trip.trip_status} /><br /><small>{delayText(trip.current_delay_minutes)}</small></td>
       <td>
         <small>Last: {trip.last_left_station || '-'}<br />Next: {trip.next_station || '-'}</small>
       </td>
@@ -447,6 +436,7 @@ function AdminTripRow({ trip, operators, assign, assigning, now }) {
       <td>
         <div className="inline-assign">
           <select
+            aria-label={`Operator for trip ${trip.trip_id}`}
             value={operator}
             onChange={event => setOperator(event.target.value)}
             disabled={expired || assigned || assigning}
@@ -460,6 +450,7 @@ function AdminTripRow({ trip, operators, assign, assigning, now }) {
           </select>
           <button
             type="button"
+            className={`btn btn-sm ${assigned ? 'btn-tertiary' : 'btn-primary'}`}
             disabled={expired || !operator || assigning || assigned}
             onClick={() => assign(trip.trip_id, operator)}
             title={expired

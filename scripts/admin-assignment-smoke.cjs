@@ -4,17 +4,23 @@ const { resolve } = require('node:path')
 const { chromium } = require('playwright-core')
 
 const appUrl = process.env.APP_URL || 'http://localhost:5173'
-const token = process.env.ADMIN_TOKEN
-const adminUserId = Number(process.env.ADMIN_USER_ID)
-const executablePath = process.env.CHROME_PATH || 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
+let token = process.env.ADMIN_TOKEN
+let adminUserId = Number(process.env.ADMIN_USER_ID)
+const { browserOptions } = require('./browser.cjs')
 const outputDir = resolve(__dirname, '../artifacts/ui-smoke')
 
-if (!token) throw new Error('ADMIN_TOKEN is required')
-if (!adminUserId) throw new Error('ADMIN_USER_ID is required')
+
 
 async function main() {
+  if (!token) {
+    const apiUrl = process.env.API_URL || 'http://localhost:5000'
+    const health = await (await fetch(`${apiUrl}/api/health`)).json()
+    assert.equal(health.data.databaseMode, 'memory', 'Automatic demo login requires memory mode')
+    const login = await (await fetch(`${apiUrl}/api/auth/login`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email:'admin@ferrovia.local',password:'Admin123!'})})).json()
+    token = login.data.token; adminUserId = login.data.user.user_id
+  }
   mkdirSync(outputDir, { recursive: true })
-  const browser = await chromium.launch({ executablePath, headless: true })
+  const browser = await chromium.launch(browserOptions())
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
   const errors = []
 
@@ -34,9 +40,9 @@ async function main() {
       }))
     }, { adminToken: token, userId: adminUserId })
 
-    await page.goto(appUrl, { waitUntil: 'networkidle' })
+    await page.goto(`${appUrl}/?intro=0`, { waitUntil: 'networkidle' })
     await page.getByText('Admin', { exact: true }).click()
-    await page.getByText('Trip & Trainset Assignments', { exact: true }).click()
+    await page.getByText('Trips & trainsets', { exact: true }).click()
     await page.getByRole('heading', { name: 'Trip assignments' }).waitFor()
     await page.getByRole('heading', { name: 'Select a trip' }).waitFor()
     await page.getByRole('heading', { name: 'Assign a physical trainset' }).waitFor()
@@ -45,9 +51,11 @@ async function main() {
     await page.locator('.issued-trip-list > button').first().waitFor()
     assert.ok(await page.locator('.issued-trip-list > button').count() > 0)
     assert.equal(await page.getByPlaceholder('Search issued train, code or trip ID').count(), 1)
-    assert.equal(await page.locator('.selected-trip-summary').count(), 1)
+    // A selected summary only appears when at least one departure is still assignable.
+    const available = page.locator('.issued-trip-list > button:not([disabled])')
+    if (await available.count()) { await available.first().click(); await page.locator('.selected-trip-summary').waitFor() }
 
-    await page.getByPlaceholder('Search issued train, code or trip ID').fill('Mixed (2)')
+    await page.getByPlaceholder('Search issued train, code or trip ID').fill('Suborno')
     assert.ok(await page.locator('.admin-train-results button').count() > 0)
     await page.screenshot({
       path: resolve(outputDir, 'admin-trip-trainset-assignment.png'),

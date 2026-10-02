@@ -5,7 +5,7 @@ const { chromium } = require('playwright-core')
 
 const appUrl = process.env.APP_URL || 'http://localhost:5173'
 const apiUrl = process.env.API_URL || 'http://localhost:5000'
-const executablePath = process.env.CHROME_PATH || 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
+const { browserOptions } = require('./browser.cjs')
 const outputDir = resolve(__dirname, '../artifacts/ui-smoke')
 const transitionDelay = 650
 
@@ -36,41 +36,41 @@ async function runPassengerFlow(browser, errors) {
   const phone = `01${unique}`
   captureErrors(page, errors)
 
-  await page.goto(appUrl, { waitUntil: 'networkidle' })
-  await page.getByRole('heading', { name: 'Travel smarter. Arrive inspired.' }).waitFor()
+  await page.goto(`${appUrl}/?intro=0`, { waitUntil: 'networkidle' })
+  await page.getByRole('heading', { name: 'Bangladesh by rail, booked in minutes.' }).waitFor()
   await page.waitForTimeout(transitionDelay)
   await assertFitsViewport(page, 'desktop home')
   await page.screenshot({ path: resolve(outputDir, 'desktop-home.png'), fullPage: true })
 
   await page.getByPlaceholder('From where?').fill('Dh')
-  await page.getByText('Dhaka', { exact: true }).click()
+  await page.getByRole('option', { name: 'Dhaka', exact: true }).click()
   await page.getByPlaceholder('To where?').fill('Cha')
-  await page.getByText('Chattogram', { exact: true }).click()
+  await page.getByRole('option', { name: 'Chattogram', exact: true }).click()
   await page.getByRole('button', { name: 'Search trains' }).click()
-  await page.getByText('1 trains available').waitFor()
+  await page.getByText('1 train available').waitFor()
   await page.waitForTimeout(transitionDelay)
   await assertFitsViewport(page, 'desktop results')
   await page.screenshot({ path: resolve(outputDir, 'desktop-results.png'), fullPage: true })
 
-  await page.locator('.train-card .classes button:not([disabled])').first().click()
+  await page.locator('.journey-card .fare-tile:not([disabled])').first().click()
   await page.locator('button[aria-label^="Seat "]:not([disabled])').first().click()
   await page.getByRole('button', { name: 'Continue to passengers' }).click()
-  await page.getByPlaceholder('Passenger full name').fill('Browser Passenger')
-  await page.getByPlaceholder('Age').fill('28')
-  await page.getByRole('button', { name: 'Hold seats & continue' }).click()
+  await page.getByLabel('Full name', {exact:true}).fill('Browser Passenger')
+  await page.getByLabel('Age', {exact:true}).fill('28')
+  await page.getByRole('button', { name: 'Hold seats and continue' }).click()
 
-  await page.getByRole('button', { name: 'Create account' }).click()
+  await page.getByRole('tab', { name: 'Create account' }).click()
   await page.getByPlaceholder('Your full name').fill('Browser Passenger')
   await page.getByPlaceholder('01XXXXXXXXX').fill(phone)
   await page.getByPlaceholder('you@example.com').fill(`browser.${unique}@ferrovia.local`)
   await page.locator('input[name="password"]').fill('Browser123!')
-  await page.locator('.modal form button.primary.full').click()
+  await page.locator('.auth-form button[type=submit]').click()
 
-  await page.getByRole('heading', { name: 'Choose payment method' }).waitFor()
+  await page.getByRole('heading', { name: 'Review and pay' }).waitFor()
   await page.getByPlaceholder('01XXXXXXXXX').fill(phone)
   await page.getByPlaceholder('Transaction ID').fill(`BROWSER-${unique}`)
-  await page.getByRole('button', { name: /Pay .* confirm/ }).click()
-  await page.getByRole('heading', { name: 'Your ticket is ready!' }).waitFor()
+  await page.getByRole('button', { name: /^Pay /  }).click()
+  await page.getByRole('heading', { name: /booked/ }).waitFor()
   await page.waitForTimeout(transitionDelay)
   await assertFitsViewport(page, 'desktop ticket')
   await page.screenshot({ path: resolve(outputDir, 'desktop-ticket.png'), fullPage: true })
@@ -83,14 +83,13 @@ async function runAdminFlow(browser, errors) {
   const page = await context.newPage()
   captureErrors(page, errors)
 
-  await page.goto(appUrl, { waitUntil: 'networkidle' })
+  await page.goto(`${appUrl}/?intro=0`, { waitUntil: 'networkidle' })
   await page.getByText('Sign in', { exact: true }).first().click()
   await page.getByPlaceholder('you@example.com').fill('admin@ferrovia.local')
   await page.locator('input[name="password"]').fill('Admin123!')
-  await page.locator('.modal form button.primary.full').click()
+  await page.locator('.auth-form button[type=submit]').click()
   await page.getByText('Admin', { exact: true }).click()
-  await page.getByText('Operations Overview', { exact: true }).click()
-  await page.getByRole('heading', { name: 'Trip assignments' }).waitFor()
+  await page.getByRole('heading', { name: 'Operations overview' }).waitFor()
   await page.waitForTimeout(transitionDelay)
   await assertFitsViewport(page, 'desktop admin')
   await page.screenshot({ path: resolve(outputDir, 'desktop-admin.png'), fullPage: true })
@@ -103,9 +102,9 @@ async function runTrackingFlow(browser, errors) {
   const page = await context.newPage()
   captureErrors(page, errors)
 
-  await page.goto(appUrl, { waitUntil: 'networkidle' })
-  await page.getByRole('button', { name: 'Track Train' }).first().click()
-  await page.getByRole('heading', { name: 'Track train operation' }).waitFor()
+  await page.goto(`${appUrl}/?intro=0`, { waitUntil: 'networkidle' })
+  await page.getByRole('button', { name: 'Track a train' }).first().click()
+  await page.getByRole('heading', { name: 'Track a train' }).waitFor()
   await page.waitForTimeout(transitionDelay)
   const input = page.getByRole('combobox', { name: 'Train name, code or Trip ID' })
   await input.fill('sub')
@@ -128,17 +127,17 @@ async function runMobileFlow(browser, errors) {
   const page = await context.newPage()
   captureErrors(page, errors)
 
-  await page.goto(appUrl, { waitUntil: 'networkidle' })
-  await page.getByRole('heading', { name: 'Travel smarter. Arrive inspired.' }).waitFor()
+  await page.goto(`${appUrl}/?intro=0`, { waitUntil: 'networkidle' })
+  await page.getByRole('heading', { name: 'Bangladesh by rail, booked in minutes.' }).waitFor()
   await assertFitsViewport(page, 'mobile home')
-  await page.getByRole('button', { name: 'Toggle menu' }).click()
-  await page.getByRole('navigation').getByRole('button', { name: 'Book Ticket' }).waitFor()
+  await page.getByRole('button', { name: 'Open menu' }).click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Book tickets' }).waitFor()
   await page.waitForTimeout(transitionDelay)
   await assertFitsViewport(page, 'mobile menu')
   await page.screenshot({ path: resolve(outputDir, 'mobile-menu.png'), fullPage: true })
 
-  await page.getByRole('navigation').getByRole('button', { name: 'Track Train' }).click()
-  await page.getByRole('heading', { name: 'Track train operation' }).waitFor()
+  await page.getByRole('dialog').getByRole('button', { name: 'Track a train' }).click()
+  await page.getByRole('heading', { name: 'Track a train' }).waitFor()
   await page.waitForTimeout(transitionDelay)
   await page.getByRole('combobox', { name: 'Train name, code or Trip ID' }).fill('sub')
   await page.getByRole('option', { name: /Suborno Express.*SUBORNO/i }).waitFor()
@@ -153,10 +152,10 @@ async function runTabletFlow(browser, errors) {
   const page = await context.newPage()
   captureErrors(page, errors)
 
-  await page.goto(appUrl, { waitUntil: 'networkidle' })
-  await page.getByRole('button', { name: 'Toggle menu' }).waitFor()
-  await page.getByRole('button', { name: 'Toggle menu' }).click()
-  await page.getByRole('navigation').getByRole('button', { name: 'Book Ticket' }).waitFor()
+  await page.goto(`${appUrl}/?intro=0`, { waitUntil: 'networkidle' })
+  await page.getByRole('button', { name: 'Open menu' }).waitFor()
+  await page.getByRole('button', { name: 'Open menu' }).click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Book tickets' }).waitFor()
   await page.waitForTimeout(transitionDelay)
   await assertFitsViewport(page, 'tablet menu')
   await page.screenshot({ path: resolve(outputDir, 'tablet-menu.png'), fullPage: true })
@@ -175,7 +174,7 @@ async function main() {
   }
 
   const errors = []
-  const browser = await chromium.launch({ executablePath, headless: true })
+  const browser = await chromium.launch(browserOptions())
 
   try {
     await runPassengerFlow(browser, errors)

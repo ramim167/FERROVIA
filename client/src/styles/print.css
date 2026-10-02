@@ -1,0 +1,15 @@
+/* Print: tickets print cleanly on white paper, without app chrome */
+@media print {
+  :root, :root[data-theme="dark"] { --color-bg: #fff; --color-surface: #fff; --color-text: #10201b; --color-text-secondary: #4c5d57; --color-text-muted: #586b62; --color-brand-text: #0b5d46; --color-surface-sunken: #f3f5f2; --color-border: #ccd5d1; --shadow-lg: none; --shadow-md: none; --shadow-sm: none; }
+  html, body { background: #fff !important; }
+  .app::before, .app::after { display: none; }
+  body { overflow: visible !important; }
+  .nav, .footer, .assistant, .toast-region, .global-loading, .skip-link, .stepper, .no-print, .ws-sidebar, .ws-mobilebar, .intro, .sticky-bar, .panel-actions, .page-header-actions, .tabs, .dialog-close, .dialog-footer, .ticket-row-actions { display: none !important; }
+  .page { padding: 0 !important; min-height: 0; }
+  .card, .eticket { box-shadow: none !important; break-inside: avoid; }
+  .eticket-head, .eticket-head * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  /* When a ticket dialog is open, print only the dialog */
+  body:has(.overlay .dialog) #main-content .page > *:not(.overlay) { display: none !important; }
+  .overlay { position: static !important; background: none !important; backdrop-filter: none !important; padding: 0 !important; display: block !important; }
+  .dialog { box-shadow: none !important; border: 0 !important; max-height: none !important; width: 100% !important; animation: none !important; }
+}

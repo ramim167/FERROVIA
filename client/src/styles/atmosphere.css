@@ -1,0 +1,80 @@
+/* A daylight product by default; night keeps the railway's cinematic depth. */
+.hero { color: var(--hero-text); background: var(--scene-sky-top); }
+.hero h1, .hero-link { color: var(--hero-text); }
+.hero-copy > p { color: var(--hero-text-muted); }
+.hero-kicker { background: var(--hero-chip-bg); border-color: var(--hero-chip-border); color: var(--hero-text); }
+.hero-scene::after { background: linear-gradient(180deg, var(--hero-overlay), transparent 85%); }
+.hero-copy { position: relative; }
+.hero-search { z-index: 3; }
+.hero .search-box { box-shadow: 0 24px 65px color-mix(in srgb, var(--scene-posts) 24%, transparent), 0 2px 8px color-mix(in srgb, var(--scene-posts) 12%, transparent); }
+:root:not([data-theme="dark"]) .nav.is-on-stage { background: transparent; border-bottom-color: transparent; }
+:root:not([data-theme="dark"]) .board { background: rgba(255,255,255,.78); border-color: var(--color-border); box-shadow: 0 18px 50px rgba(49,85,70,.12), inset 0 1px white; }
+:root:not([data-theme="dark"]) :is(.board-head, .board-name, .board-foot, .board-stop small) { color: var(--hero-text-muted); }
+:root:not([data-theme="dark"]) :is(.board-head, .board-foot) { border-color: var(--color-border-strong); }
+:root:not([data-theme="dark"]) .board-rail span { background-image: repeating-linear-gradient(90deg, var(--color-brand) 0 5px, transparent 5px 9px); }
+:root:not([data-theme="dark"]) :is(.results-route, .next-trip, .bento-track, .auth-visual, .assistant-head, .selected-trip-summary, .admin-edit-heading) {
+  --stage-bg: var(--green-100); --stage-bg-2: var(--green-50);
+  --stage-text: var(--color-text); --stage-text-muted: var(--color-text-secondary);
+  background: linear-gradient(135deg, var(--green-50), var(--green-100)); color: var(--color-text);
+}
+:root:not([data-theme="dark"]) :is(.next-trip h2, .next-trip-foot b, .next-trip-foot .copy-chip, .bento-track h3, .auth-visual h2, .admin-edit-heading h2) { color: var(--color-text); }
+:root:not([data-theme="dark"]) :is(.next-trip-countdown, .bento-track .link-btn, .bento-track .bento-icon) { color: var(--color-accent-text); }
+:root:not([data-theme="dark"]) .next-trip .route-line { --color-text: var(--slate-900); --color-text-secondary: var(--slate-600); --color-surface: var(--green-50); --color-border: var(--green-200); --rail: var(--green-200); --node: var(--green-50); --color-brand: var(--green-700); --color-accent: var(--amber-500); --color-accent-soft: var(--amber-100); --color-surface-sunken: var(--green-100); }
+:root:not([data-theme="dark"]) .bento-stop small { color: var(--color-text-secondary); }
+:root:not([data-theme="dark"]) .bento-stop.is-next small { color: var(--color-accent-text); }
+:root:not([data-theme="dark"]) .home-cta { background: var(--green-700); }
+.home-cta p { color: var(--green-100); }
+.intro-skip { background: var(--hero-chip-bg); color: var(--hero-text); border-color: var(--hero-chip-border); }
+
+/* The whole shell has a quiet, moving wash, behind opaque reading surfaces. */
+.app { isolation: isolate; }
+.app::before, .app::after { content: ''; position: fixed; pointer-events: none; z-index: -1; width: min(70vw, 900px); aspect-ratio: 1; border-radius: 50%; opacity: .45; background: radial-gradient(ellipse, var(--color-brand-soft-strong), transparent 68%); animation: atmosphere-drift 32s ease-in-out infinite alternate; }
+.app::before { top: 10%; left: -30%; }
+.app::after { bottom: -30%; right: -20%; animation-delay: -16s; background: radial-gradient(ellipse, var(--color-accent-soft), transparent 68%); opacity: .22; }
+html.is-background .app::before, html.is-background .app::after { animation-play-state: paused; }
+html.is-background *, html.is-background *::before, html.is-background *::after { animation-play-state: paused !important; }
+.station-tile, .bento-card, .journey-card, .stat-card { transition: transform 240ms var(--ease-out), border-color 240ms, box-shadow 240ms; }
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .station-tile:hover, .bento-card:hover, .stat-card.is-interactive:hover { transform: translateY(-4px); }
+}
+@keyframes atmosphere-drift { from { transform: translate3d(0, -5%, 0); } to { transform: translate3d(20%, 14%, 0); } }
+@media (prefers-reduced-motion: reduce) {
+  .app::before, .app::after { animation: none; }
+  .station-tile, .bento-card, .journey-card, .stat-card { transition: none; }
+}
+.seat.is-window.is-right { box-shadow: inset -4px 0 0 var(--color-info); }
+.seat.is-window.is-left { box-shadow: inset 4px 0 0 var(--color-info); }
+.seat-aisle { opacity: 1; }
+@media (max-width: 360px) {
+  .coach { padding: .7rem .4rem; }
+  .seat-grid { grid-template-columns: repeat(2, minmax(44px, 1fr)) 20px repeat(2, minmax(44px, 1fr)); column-gap: 5px; }
+  .seat-panel { padding-inline: .75rem; }
+}
+tr.is-muted { opacity: 1; color: var(--color-text-secondary); }
+@media (max-width: 760px) {
+  .table-wrap .departures-table, .departures-table tbody { display: block; min-width: 0; }
+  .departures-table thead { display: none; }
+  .departures-table tr { display: grid; padding: .75rem; border-bottom: 1px solid var(--color-border); }
+  .departures-table td { display: block; border: 0; padding: .4rem; white-space: normal; }
+  .departures-table td::before { content: attr(data-label); display: block; font-size: .7rem; font-weight: 700; color: var(--color-text-muted); margin-bottom: .2rem; }
+}
+
+.bento { grid-template-columns: 1.4fr 1fr; }
+.bento-track { grid-column: auto; grid-row: span 3; align-content: center; }
+.service-index { display: flex; gap: .4rem; flex-wrap: wrap; padding: .6rem; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface); }
+.service-index button { padding: .6rem .8rem; border-radius: var(--radius-md); color: var(--color-brand-text); font-weight: 700; }
+.service-index button:hover { background: var(--color-brand-soft); }
+.admin-train-section { scroll-margin-top: calc(var(--nav-height) + 90px); }
+.admin-train-section:has(:user-invalid) { border-color: var(--color-danger); }
+.admin-train-section:has(:user-invalid)::after { content: 'Check the highlighted fields in this section.'; color: var(--color-danger-text); font-size: .85rem; }
+@media (min-width: 1180px) { .service-index { position: sticky; top: calc(var(--nav-height) + 8px); z-index: 4; } }
+@media (max-width: 760px) {
+  .bento { grid-template-columns: 1fr; }
+  .bento-track { grid-row: auto; }
+}
+
+.results-sort { flex-wrap: wrap; }
+.results-toolbar > .row { justify-content: flex-end; }
+@media (max-width: 560px) { .board { display: block; padding: 1rem; } .board-foot { display: none; } .board-route { padding-bottom: 0; } .hero-grid { gap: 1.5rem; } .results-sort { width: 100%; } }
+
+@media (max-width: 560px) { .op-layout { grid-template-columns: minmax(0, 1fr); } .op-trip { flex-wrap: wrap; } .op-trip-status { display: flex; width: 100%; justify-content: space-between; } }

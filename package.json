@@ -9,9 +9,13 @@
     "test:ui": "node scripts/ui-smoke.cjs",
     "test:ui:track": "node scripts/ui-track-smoke.cjs",
     "test:ui:admin": "node scripts/admin-assignment-smoke.cjs",
+    "test:design": "node scripts/design-audit.cjs",
+    "test:booking-design": "node scripts/booking-audit.cjs",
+    "test:motion": "node scripts/motion-audit.cjs",
     "check": "npm run lint && npm run test && npm run build"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "playwright-core": "^1.63.0"
   }
 }
