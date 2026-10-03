@@ -17,7 +17,7 @@ export default function Support({ setToast }) {
   const results = FAQ.filter(([q, a]) => `${q} ${a}`.toLowerCase().includes(query.toLowerCase()))
   return (
     <main className="page page-enter">
-      <PageHeader overline="Help centre" title="How can we help?" description="Answers to common travel questions, or send a message to the support team." />
+      <PageHeader overline="Help centre" title="How can we help?" description="Find answers to travel questions or prepare a note about your booking." />
       <label className="support-search">
         <Icon name="search" size={20} />
         <span className="sr-only">Search help articles</span>
@@ -36,7 +36,7 @@ export default function Support({ setToast }) {
               ))}
             </div>
           ) : (
-            <div className="card"><EmptyState compact icon="search" title="No answers match your search" description="Try another word, or send us a message and we’ll help." /></div>
+            <div className="card"><EmptyState compact icon="search" title="No answers match your search" description="Try another word or ask Conduttore about a train, route or fare." /></div>
           )}
           <button type="button" className="support-assistant" onClick={() => window.dispatchEvent(new CustomEvent('ferrovia:assistant'))}>
             <span className="bento-icon tone-info"><Icon name="bot" size={20} /></span>
@@ -48,28 +48,35 @@ export default function Support({ setToast }) {
           className="card support-form"
           onSubmit={(e) => {
             e.preventDefault()
-            e.currentTarget.reset()
-            setToast('Your support message was submitted')
+            const fields = new FormData(e.currentTarget)
+            const note = `FERROVIA support note\n\nName: ${fields.get('name')}\nEmail: ${fields.get('email')}\nTopic: ${fields.get('topic')}\n\n${fields.get('message')}\n`
+            const url = URL.createObjectURL(new Blob([note], { type: 'text/plain;charset=utf-8' }))
+            const link = document.createElement('a')
+            link.href = url; link.download = 'ferrovia-support-note.txt'
+            document.body.appendChild(link); link.click(); link.remove()
+            setTimeout(() => URL.revokeObjectURL(url), 1000)
+            setToast('Support note downloaded. It has not been sent.')
           }}
         >
           <div>
-            <h2 className="support-heading">Contact support</h2>
-            <p className="secondary-text">Tell us what happened and include your PNR if it’s about a booking.</p>
+            <h2 className="support-heading">Prepare a support note</h2>
+            <p className="secondary-text">Save the details for your records. Include your PNR if it’s about a booking.</p>
           </div>
+          <p className="notice notice-info"><Icon name="info" size={17} /> This website cannot send support requests yet. Downloading a note saves it on your device only.</p>
           <div className="form-row">
-            <label>Name<input required placeholder="Your name" autoComplete="name" /></label>
-            <label>Email<input required type="email" placeholder="you@example.com" autoComplete="email" /></label>
+            <label>Name<input name="name" required placeholder="Your name" autoComplete="name" /></label>
+            <label>Email<input name="email" required type="email" placeholder="you@example.com" autoComplete="email" /></label>
           </div>
           <label>Topic
-            <select>
+            <select name="topic">
               <option>Booking issue</option>
               <option>Payment</option>
               <option>Live tracking</option>
               <option>Cancellation / refund</option>
             </select>
           </label>
-          <label>Message<textarea required rows="5" placeholder="How can we help?" /></label>
-          <Button type="submit" iconRight="arrow">Send message</Button>
+          <label>Message<textarea name="message" required rows="5" placeholder="How can we help?" /></label>
+          <Button type="submit" iconRight="download">Download note</Button>
         </form>
       </div>
     </main>

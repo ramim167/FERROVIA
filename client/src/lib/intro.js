@@ -3,6 +3,7 @@ export const INTRO_KEY = 'ferrovia-intro-seen'
 /** Whether the intro should play: once per browser session, never with reduced motion. */
 export function shouldPlayIntro() {
   try {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || localStorage.getItem('ferrovia-motion') === 'false') return false
     if (new URLSearchParams(window.location.search).get('intro') === '0') return false
     if (new URLSearchParams(window.location.search).get('intro') === '1') return true
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return false

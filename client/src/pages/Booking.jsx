@@ -147,7 +147,7 @@ export function SearchPage({ search, setSearch, doSearch, chooseTrain, favorites
   const [types, setTypes] = useState(saved.types || [])
   const [sort, setSort] = useState(saved.sort || 'earliest')
   useEffect(() => { try { sessionStorage.setItem('ferrovia-filters', JSON.stringify({ times, types, sort })) } catch { /* Optional storage */ } }, [times, types, sort])
-  const [editing, setEditing] = useState(false)
+  const [editing, setEditing] = useState(() => !search.from || !search.to)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const filtered = useMemo(() => {
     let list = [...trains]
@@ -525,7 +525,7 @@ function useCountdown(target) {
     return () => clearInterval(t)
   }, [target])
   if (!target) return null
-  return Math.max(0, Math.floor((new Date(target).getTime() - now) / 1000))
+  return Math.max(0, Math.ceil((new Date(target).getTime() - now) / 1000))
 }
 
 function restrictDigits(event, maxLength) {
@@ -542,14 +542,14 @@ function formatFutureCardExpiry(event) {
   const expiryYear = 2000 + Number(match[2])
   const expiryMonth = Number(match[1])
   const now = new Date()
-  const isFuture = expiryYear > now.getFullYear() || (expiryYear === now.getFullYear() && expiryMonth > now.getMonth() + 1)
-  input.setCustomValidity(isFuture ? '' : 'Expiry must be after the current month.')
+  const isFuture = expiryYear > now.getFullYear() || (expiryYear === now.getFullYear() && expiryMonth >= now.getMonth() + 1)
+  input.setCustomValidity(isFuture ? '' : 'Expiry must not be in the past.')
 }
 
 const METHODS = [
-  ['Mobile Banking', 'phone', 'bKash, Nagad, Rocket'],
-  ['Card', 'card', 'Visa, Mastercard, Amex'],
-  ['Bank Transfer', 'bank', 'Online banking reference'],
+  ['Mobile Banking', 'phone', 'Record a mobile payment reference'],
+  ['Card', 'card', 'Record a card payment'],
+  ['Bank Transfer', 'bank', 'Record a bank transfer reference'],
 ]
 
 export function PaymentPage({ booking, confirm, back, train, cls, search, seatLabels, paying, navigate }) {
@@ -573,7 +573,7 @@ export function PaymentPage({ booking, confirm, back, train, cls, search, seatLa
       <BookingStepper step={3} />
       <header className="page-header">
         <div className="page-header-copy">
-          <span className="page-overline">Secure checkout</span>
+          <span className="page-overline">Complete your booking</span>
           <h1>Review and pay</h1>
           <p>Your seats are reserved under PNR <b className="t-num">{booking.pnr_number}</b> while you complete payment.</p>
         </div>
@@ -586,8 +586,9 @@ export function PaymentPage({ booking, confirm, back, train, cls, search, seatLa
           )}
         </div>
       </header>
+      {expired && <div className="notice notice-warning" role="alert"><span>Your seat hold has expired. Search again to choose available seats.</span><Button variant="secondary" onClick={() => navigate('search')}>Choose seats again</Button></div>}
       <div className="booking-layout">
-        <form className="payment card" onSubmit={(e) => confirm(e, method)}>
+        <form className="payment card" onSubmit={(e) => { if (expired) e.preventDefault(); else confirm(e, method) }}>
           <h2 className="payment-title">Payment method</h2>
           <div className="pay-methods" role="radiogroup" aria-label="Payment method">
             {METHODS.map(([x, icon, hint]) => (

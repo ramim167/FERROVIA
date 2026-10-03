@@ -20,14 +20,13 @@ async function main() {
           await page.waitForTimeout(Math.max(0, seconds * 1000 - (Date.now()-start)))
           const state = await page.locator('.hero-scene').evaluate(el => ({ mode: el.className, far: getComputedStyle(el.querySelector('.scene-far .scene-strip')).transform, trainHeight: el.querySelector('.train-art').getBoundingClientRect().height, overflow: document.documentElement.scrollWidth - innerWidth, visibility: document.visibilityState }))
           frames.push({ seconds, ...state })
-          await page.screenshot({ path: resolve(out, `${theme}-${width}-${seconds}s.png`) })
+          await page.screenshot({ path: resolve(out, `${theme}-${width}-${seconds}s.png`), fullPage: true })
         }
         // Wait for the next actual event, with no synthetic train injection.
         if (!await page.locator('.scene-distant').count()) await page.locator('.scene-distant').waitFor({ timeout: 42000 })
-        await page.screenshot({ path: resolve(out, `${theme}-${width}-distant-train.png`) })
+        await page.screenshot({ path: resolve(out, `${theme}-${width}-distant-train.png`), fullPage: true })
         await page.emulateMedia({ reducedMotion: 'reduce' })
-        await page.waitForTimeout(150)
-        assert.ok(await page.locator('.hero-scene.is-idle').count())
+        await page.locator('.hero-scene.is-idle').waitFor({timeout:10000})
         await page.screenshot({ path: resolve(out, `${theme}-${width}-reduced.png`) })
         reports.push({ theme, width, frames, distantTrainObserved: true })
         writeFileSync(resolve(out, 'report.json'), JSON.stringify(reports, null, 2))

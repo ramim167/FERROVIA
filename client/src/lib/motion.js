@@ -3,7 +3,7 @@ import { flushSync } from 'react-dom'
 let activeTransition
 
 export function prefersReducedMotion() {
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  return document.documentElement.dataset.motion === 'paused' || window.matchMedia('(prefers-reduced-motion: reduce)').matches
 }
 
 // Keep navigation immediate; browsers with View Transitions animate the snapshots.

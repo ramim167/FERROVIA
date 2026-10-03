@@ -52,15 +52,21 @@ export default function RailScene({ mode = 'cruise', className = '', coaches = 3
 
   useEffect(() => {
     const media = matchMedia('(prefers-reduced-motion: reduce)')
-    const change = () => setReduced(media.matches)
+    const change = () => setReduced(media.matches || document.documentElement.dataset.motion === 'paused')
     media.addEventListener('change', change)
+    const preference = new MutationObserver(change)
+    preference.observe(document.documentElement, { attributes: true, attributeFilter: ['data-motion'] })
+    change()
     let visible = true
-    const update = () => setPaused(!visible || document.hidden)
+    const update = () => {
+      setPaused(!visible || document.hidden)
+      if (root.current?.parentElement.classList.contains('hero')) root.current.parentElement.classList.toggle('is-scene-paused', !visible || document.hidden)
+    }
     const observer = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; update() })
     observer.observe(root.current)
     document.addEventListener('visibilitychange', update)
     update()
-    return () => { observer.disconnect(); media.removeEventListener('change', change); document.removeEventListener('visibilitychange', update) }
+    return () => { observer.disconnect(); preference.disconnect(); media.removeEventListener('change', change); document.removeEventListener('visibilitychange', update) }
   }, [])
 
   useEffect(() => {

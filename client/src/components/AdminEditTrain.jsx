@@ -557,7 +557,7 @@ export default function AdminEditTrain({
                                         <p>No stops configured.</p>
                                     )
                                     : (
-                                        <div className="admin-table-wrap admin-config-table admin-route-stops">
+                                        <div className="admin-table-wrap admin-config-table admin-route-stops" tabIndex={0} role="region" aria-label="Route stops">
 
                                             <table>
 
@@ -649,7 +649,7 @@ export default function AdminEditTrain({
                 <section className="card admin-edit-section">
                     <h2>Fare Rules</h2>
                     <p>Distance-based pricing configured for each travel class.</p>
-                    <div className="admin-table-wrap admin-config-table">
+                    <div className="admin-table-wrap admin-config-table" tabIndex={0} role="region" aria-label="Fare rules">
                         <table>
                             <thead>
                                 <tr><th>Class</th><th>Code</th><th>Base fare</th><th>Rate / km</th></tr>
@@ -673,7 +673,7 @@ export default function AdminEditTrain({
                 <section className="card admin-edit-section">
                     <h2>Coaches & Seats</h2>
                     <p>Coach order, class allocation and active seat capacity.</p>
-                    <div className="admin-table-wrap admin-config-table">
+                    <div className="admin-table-wrap admin-config-table" tabIndex={0} role="region" aria-label="Coaches and seats">
                         <table>
                             <thead>
                                 <tr><th>Order</th><th>Coach</th><th>Class</th><th>Class code</th><th>Seats</th></tr>

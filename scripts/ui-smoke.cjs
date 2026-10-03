@@ -33,7 +33,7 @@ async function runPassengerFlow(browser, errors) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
   const page = await context.newPage()
   const unique = Date.now().toString().slice(-9)
-  const phone = `01${unique}`
+  const phone = `017${unique.slice(-8)}`
   captureErrors(page, errors)
 
   await page.goto(`${appUrl}/?intro=0`, { waitUntil: 'networkidle' })
@@ -66,7 +66,8 @@ async function runPassengerFlow(browser, errors) {
   await page.locator('input[name="password"]').fill('Browser123!')
   await page.locator('.auth-form button[type=submit]').click()
 
-  await page.getByRole('heading', { name: 'Review and pay' }).waitFor()
+  try { await page.getByRole('heading', { name: 'Review and pay' }).waitFor() }
+  catch (error) { console.log('Booking feedback:', await page.locator('.form-error, .toast, [role=alert]').allTextContents()); await page.screenshot({path:resolve(outputDir,'booking-failure.png'),fullPage:true}); throw error }
   await page.getByPlaceholder('01XXXXXXXXX').fill(phone)
   await page.getByPlaceholder('Transaction ID').fill(`BROWSER-${unique}`)
   await page.getByRole('button', { name: /^Pay /  }).click()

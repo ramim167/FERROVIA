@@ -1,0 +1,88 @@
+/* Journey edition: shared surfaces, scenic station cards and planner hierarchy. */
+.hero { min-height: 900px; }
+.hero-inner { padding-top: 1.75rem; gap: 2rem; }
+.hero-edition { display: flex; justify-content: space-between; align-items: center; gap: 1rem; color: var(--hero-text-muted); padding-bottom: 1rem; border-bottom: 1px solid var(--hero-chip-border); font-size: .72rem; font-weight: 750; letter-spacing: .14em; }
+.hero-edition span:last-child { font-weight: 560; letter-spacing: 0; }
+.hero-grid { grid-template-columns: minmax(0, 1.3fr) minmax(300px, .8fr); gap: 4rem; }
+.hero h1 { max-width: 17ch; font-size: clamp(2.8rem, 4.8vw, 5rem); line-height: 1.05; letter-spacing: -.06em; }
+.hero h1 em { font-style: normal; color: var(--color-brand-text); }
+.hero-copy > p { max-width: 45ch; }
+.board { transform: rotate(-1deg); border-radius: 18px; }
+.board-head { letter-spacing: .03em; }
+.board-route { padding-block: 1.5rem; }
+.hero-search { border: 1px solid var(--color-border); border-radius: 24px; background: var(--color-surface); color: var(--color-text); box-shadow: 0 20px 70px color-mix(in srgb, var(--scene-posts) 18%, transparent); }
+.planner-heading { display: flex; justify-content: space-between; align-items: center; gap: .75rem; padding: 1.1rem 1.3rem .2rem; }
+.planner-heading > span { display: flex; align-items: center; gap: .55rem; font-size: .85rem; font-weight: 800; }
+.planner-heading .icon { color: var(--color-brand-text); }
+.planner-heading small { font-size: .75rem; color: var(--color-text-secondary); }
+.hero .search-box { border: 0; box-shadow: none; background: transparent; padding: 1rem 1.1rem 1.1rem; }
+.scenery-caption { position: absolute; bottom: 26px; left: max(var(--page-gutter), calc((100% - var(--page-max)) / 2)); right: max(var(--page-gutter), calc((100% - var(--page-max)) / 2)); display: flex; justify-content: space-between; align-items: center; gap: 1rem; color: var(--hero-text); font-size: .75rem; font-weight: 650; }
+.scenery-caption > span { display: flex; align-items: center; gap: .55rem; background: var(--hero-chip-bg); padding: .5rem .75rem; border-radius: 100px; }
+.scenery-caption i { width: 6px; height: 6px; background: var(--color-brand-text); border-radius: 50%; }
+.scenery-caption button { min-height: 36px; padding: .4rem .85rem; border-radius: 100px; border: 1px solid var(--hero-chip-border); background: var(--hero-chip-bg); color: var(--hero-text); }
+.journey-ribbon { display: flex; justify-content: center; align-items: center; gap: clamp(1rem, 5vw, 5rem); padding: 1.5rem var(--page-gutter); border-block: 1px solid var(--color-border); background: var(--color-surface); }
+.journey-ribbon span { display: flex; gap: .6rem; align-items: center; font-size: .82rem; font-weight: 750; }
+.journey-ribbon .icon { color: var(--color-brand-text); }
+.journey-ribbon > i { width: 4px; height: 4px; border-radius: 50%; background: var(--color-border-strong); }
+.home-head h2 { max-width: 21ch; }
+.station-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1.15rem; }
+.station-tile { overflow: hidden; padding: 0 1.1rem 1.15rem; gap: .25rem; border-radius: 20px; }
+.station-landscape { display: block; width: calc(100% + 2.2rem); max-width: none; height: auto; margin: 0 -1.1rem .8rem; background: var(--scene-sky-mid); }
+.landscape-sun { fill: var(--scene-sun); }
+.landscape-cloud { stroke: var(--scene-cloud); opacity: .6; }
+.landscape-hill { fill: var(--scene-hills); }
+.landscape-city { fill: var(--scene-city); }
+.landscape-river { fill: var(--scene-ground-top); }
+.landscape-rail { stroke: var(--scene-posts); opacity: .6; }
+.landscape-1 .landscape-hill { transform: translateY(15px); }
+.landscape-2 .landscape-city { transform: translateX(25px); }
+.landscape-3 .landscape-city { transform: translateX(-25px); }
+.station-tile-code { font-size: .75rem; color: var(--color-brand-text); letter-spacing: .13em; }
+.station-tile-name { font-size: 1.1rem; }
+.station-tile-arrow { top: auto; bottom: 1.2rem; }
+.station-tile.is-picked { box-shadow: 0 0 0 2px var(--color-brand); }
+.card, .journey-card { border-radius: 20px; }
+.page-header { padding-bottom: 1.25rem; border-bottom: 1px solid var(--color-border); }
+.page-overline { letter-spacing: .13em; font-size: .72rem; }
+.stat-card { position: relative; overflow: hidden; }
+.stat-card::after { content: ''; position: absolute; right: -25px; top: -25px; width: 110px; height: 110px; border: 18px solid var(--color-brand-soft); border-radius: 50%; pointer-events: none; }
+.ticket-row > .refund { grid-column: 1 / -1; }
+.ws-count { margin-left: auto; padding-inline: .4rem; }
+.is-scene-paused .board *, .is-scene-paused .board *::after { animation-play-state: paused !important; }
+html[data-motion="paused"] *, html[data-motion="paused"] *::before, html[data-motion="paused"] *::after { animation: none !important; }
+html[data-motion="paused"] .reveal { opacity: 1; transform: none; }
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .station-landscape .landscape-cloud { transition: transform 400ms ease; }
+  .station-tile:hover .landscape-cloud { transform: translateX(12px); }
+}
+@media (max-width: 1024px) {
+  .hero-grid { gap: 2rem; }
+  .hero h1 { font-size: clamp(2.6rem, 5vw, 4rem); }
+}
+@media (max-width: 900px) {
+  .hero-grid { grid-template-columns: 1fr; }
+  .hero { min-height: auto; }
+  .board { width: 100%; max-width: none; }
+  .board-route { padding-block: 1rem; }
+  .station-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+  .hero-inner { padding-top: 1rem; gap: 1.5rem; }
+  .hero-edition span:last-child, .planner-heading small { display: none; }
+  .hero-edition { font-size: .65rem; padding-bottom: .75rem; }
+  .hero h1 { font-size: clamp(2.2rem, 9vw, 3.5rem); }
+  .hero-copy { gap: 1rem; }
+  .hero-search { border-radius: 18px; }
+  .hero .search-box { padding: .85rem; }
+  .planner-heading { padding: 1rem .85rem 0; }
+  .scenery-caption { bottom: 14px; }
+  .scenery-caption > span { display: none; }
+  .scenery-caption button { margin-left: auto; }
+  .journey-ribbon { gap: .8rem; padding-block: 1rem; justify-content: space-between; }
+  .journey-ribbon span { font-size: .67rem; flex-direction: column; gap: .4rem; text-align: center; }
+  .journey-ribbon > i { display: none; }
+  .station-grid { gap: .75rem; }
+  .station-tile-name { font-size: .92rem; }
+  .station-tile-city { padding-right: .85rem; }
+}
+@media print { .journey-ribbon, .scenery-caption { display: none; } }

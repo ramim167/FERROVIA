@@ -8,6 +8,7 @@ import './styles/scene.css'
 import './styles/pages.css'
 import './styles/admin.css'
 import './styles/atmosphere.css'
+import './styles/journey.css'
 import './styles/print.css'
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
@@ -43,10 +44,11 @@ import { api, clearSession, getStoredToken, storeSession } from './lib/api'
 import { localToday } from './lib/format'
 import { shouldPlayIntro } from './lib/intro'
 import { WORKSPACE_PAGES } from './lib/roles'
+import { readStored, writeStored } from './lib/storage'
 
-function pageFromUrl() {
+function pageFromUrl(initial = false) {
   const route = window.location.hash.replace(/^#\/?/, '').replace(/^admin\//, 'admin-') || 'home'
-  return ['seats', 'passengers', 'payment', 'confirmation'].includes(route) ? 'search' : route
+  return initial && ['seats', 'passengers', 'payment', 'confirmation'].includes(route) ? 'search' : route
 }
 
 const initialSearch = { from: '', to: '', date: localToday(), passengers: 1 }
@@ -58,8 +60,10 @@ const PAGES = new Set([
 ])
 
 function initialTheme() {
-  const stored = localStorage.getItem('ferrovia-theme')
-  if (stored === 'light' || stored === 'dark') return stored
+  try {
+    const stored = localStorage.getItem('ferrovia-theme')
+    if (stored === 'light' || stored === 'dark') return stored
+  } catch { /* Browser storage can be unavailable in private contexts. */ }
   return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
 
@@ -86,7 +90,7 @@ function useReveal(deps = []) {
 }
 
 function App() {
-  const [page, setPage] = useState(pageFromUrl)
+  const [page, setPage] = useState(() => pageFromUrl(true))
   const [search, setSearch] = useState(initialSearch)
   const [stations, setStations] = useState([])
   const [searchResults, setSearchResults] = useState([])
@@ -100,17 +104,27 @@ function App() {
   const [lastBooking, setLastBooking] = useState(null)
   const [bookings, setBookings] = useState([])
   const [notifications, setNotifications] = useState([])
-  const [user, setUser] = useState(() => JSON.parse(localStorage.getItem('rail-user') || 'null'))
+  const [user, setUser] = useState(() => readStored('rail-user', null))
   const [authOpen, setAuthOpen] = useState(false)
   const [authMode, setAuthMode] = useState('signin')
   const [authResume, setAuthResume] = useState(null)
   const [toast, setToast] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [favorites, setFavorites] = useState(() => JSON.parse(localStorage.getItem('rail-favorites') || '[]'))
+  const [favorites, setFavorites] = useState(() => { const value = readStored('rail-favorites', []); return Array.isArray(value) ? value : [] })
   const [detailTrain, setDetailTrain] = useState(null)
   const [theme, setTheme] = useState(initialTheme)
   const [intro, setIntro] = useState(shouldPlayIntro)
+  const [motionEnabled, setMotionEnabled] = useState(() => readStored('ferrovia-motion', true) !== false)
+  const finishIntro = useCallback(() => setIntro(false), [])
+  useEffect(() => {
+    const initial = pageFromUrl(true)
+    if (initial !== pageFromUrl()) history.replaceState(null, '', `#/${initial}`)
+  }, [])
+  useEffect(() => {
+    document.documentElement.dataset.motion = motionEnabled ? 'playing' : 'paused'
+    writeStored('ferrovia-motion', motionEnabled)
+  }, [motionEnabled])
   useEffect(() => {
     const expired = () => {
       setUser(null); setBookings([]); setNotifications([])
@@ -121,16 +135,26 @@ function App() {
   }, [])
 
   useEffect(() => {
-    const back = () => { setPage(pageFromUrl()); window.scrollTo(0, 0) }
+    const back = () => {
+      if (location.hash === '#main-content') return
+      let route = pageFromUrl()
+      if ((['seats', 'passengers'].includes(route) && !selectedTrain) || (route === 'payment' && !pendingBooking) || (route === 'confirmation' && !lastBooking)) {
+        route = 'search'
+        history.replaceState(null, '', '#/search')
+      }
+      setPage(route); window.scrollTo(0, 0)
+    }
     const visibility = () => document.documentElement.classList.toggle('is-background', document.hidden)
     window.addEventListener('popstate', back)
+    window.addEventListener('hashchange', back)
     document.addEventListener('visibilitychange', visibility)
-    return () => { window.removeEventListener('popstate', back); document.removeEventListener('visibilitychange', visibility) }
-  }, [])
+    visibility()
+    return () => { window.removeEventListener('popstate', back); window.removeEventListener('hashchange', back); document.removeEventListener('visibilitychange', visibility) }
+  }, [selectedTrain, pendingBooking, lastBooking])
 
-  useEffect(() => localStorage.setItem('rail-favorites', JSON.stringify(favorites)), [favorites])
+  useEffect(() => writeStored('rail-favorites', favorites), [favorites])
   useEffect(() => {
-    localStorage.setItem('ferrovia-theme', theme)
+    try { localStorage.setItem('ferrovia-theme', theme) } catch { /* Theme still applies for this visit. */ }
     document.documentElement.dataset.theme = theme
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'dark' ? '#08120f' : '#f3f5f2')
   }, [theme])
@@ -188,7 +212,7 @@ function App() {
     api('/auth/me')
       .then((me) => {
         setUser(me)
-        localStorage.setItem('rail-user', JSON.stringify(me))
+        writeStored('rail-user', me)
         loadBookings()
         loadNotifications()
       })
@@ -389,7 +413,7 @@ function App() {
 
   const renderPage = () => {
     switch (page) {
-      case 'home': return <Home search={search} setSearch={setSearch} doSearch={doSearch} navigate={navigate} stations={stations} />
+      case 'home': return <Home search={search} setSearch={setSearch} doSearch={doSearch} navigate={navigate} stations={stations} motionEnabled={motionEnabled} onToggleMotion={() => setMotionEnabled(value => !value)} />
       case 'search': return <SearchPage search={search} setSearch={setSearch} doSearch={doSearch} chooseTrain={chooseTrain} favorites={favorites} toggleFavorite={toggleFavorite} setDetailTrain={setDetailTrain} loading={loading} trains={searchResults} stations={stations} searchError={searchError} />
       case 'seats': return <SeatPage train={selectedTrain} cls={selectedClass} search={search} seatList={seatList} seats={seats} seatLabels={selectedSeatLabels} toggleSeat={toggleSeat} next={continuePassengers} back={() => navigate('search')} total={estimatedTotal} />
       case 'passengers': return <PassengerPage passengers={passengers} update={updatePassenger} next={toPayment} back={() => navigate('seats')} train={selectedTrain} cls={selectedClass} search={search} seatLabels={selectedSeatLabels} total={estimatedTotal} user={user} />
@@ -424,7 +448,7 @@ function App() {
     <ConfirmProvider>
       <div className={`app ${inWorkspace ? 'is-workspace' : ''}`}>
         <a className="skip-link" href="#main-content">Skip to main content</a>
-        {intro && <Intro onDone={() => setIntro(false)} />}
+        {intro && <Intro onDone={finishIntro} />}
         <Navbar
           page={page}
           navigate={navigate}

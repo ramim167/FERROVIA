@@ -1,18 +1,22 @@
 const assert = require('node:assert/strict')
 const { chromium } = require('playwright-core')
 const AxeBuilder = require('@axe-core/playwright').default
-const { mkdirSync, writeFileSync } = require('node:fs')
+const { mkdirSync, writeFileSync, existsSync, readFileSync } = require('node:fs')
 const { resolve } = require('node:path')
 const { browserOptions } = require('./browser.cjs')
 const out = resolve(__dirname, '../artifacts/admin-workflow')
 mkdirSync(out, { recursive: true })
-const checks = [], screens = [], errors = []
+const previous = process.env.AUDIT_RESUME && existsSync(resolve(out,'report.json')) ? JSON.parse(readFileSync(resolve(out,'report.json'))) : {screens:[],checks:[],errors:[]}
+const {checks,screens,errors} = previous
 async function api(path, body, token, method = 'POST') {
   const response = await fetch(`http://localhost:5000/api${path}`, { method, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) })
   const result = await response.json(); assert.ok(response.ok, result.error); return result.data
 }
 async function matrix(page, name) {
   for (const theme of ['light','dark']) for (const width of [1440,1024,768,390,320]) {
+    const index = screens.findIndex(s=>s.name===name && s.theme===theme && s.width===width)
+    if(process.env.AUDIT_RESUME && index>=0 && !screens[index].violations.length && screens[index].overflow<=0) continue
+    if(index>=0) screens.splice(index,1)
     await page.setViewportSize({ width, height: 900 })
     await page.evaluate(theme => { document.documentElement.dataset.theme = theme }, theme)
     await page.waitForTimeout(750)
@@ -30,7 +34,8 @@ async function main() {
   const admin = await api('/auth/login',{email:'admin@ferrovia.local',password:'Admin123!'})
   const browser = await chromium.launch(browserOptions())
   try {
-    const page = await browser.newPage({viewport:{width:1440,height:900}})
+    const context = await browser.newContext({viewport:{width:1440,height:900}})
+    const page = await context.newPage()
     page.on('pageerror',e=>errors.push(e.message))
     await page.addInitScript(session=>{localStorage.setItem('rail-token',session.token);localStorage.setItem('rail-user',JSON.stringify(session.user))},admin)
     await page.goto('http://localhost:5173/?intro=0#/admin/add-train',{waitUntil:'networkidle'})
@@ -67,9 +72,10 @@ async function main() {
     await page.getByRole('button',{name:'Create complete train service'}).click()
     const response=await create; const payload=await response.json();assert.ok(response.ok(),JSON.stringify(payload))
     checks.push('Complete train service created through the extracted form sections')
-    const trainId=payload.data.train_id
+    const trainId=payload.data.trainId
+    assert.ok(trainId, JSON.stringify(payload))
     await page.goto('http://localhost:5173/?intro=0#/admin/edit-train',{waitUntil:'networkidle'})
-    await page.locator('select').first().selectOption(String(trainId))
+    await page.locator('.admin-train-selector select').selectOption(String(trainId))
     await page.getByRole('tab',{name:'Basic info',exact:true}).waitFor()
     for(const tab of ['Basic info','Routes & schedule','Trainsets','Fares','Coaches & seats']) {
       await page.getByRole('tab',{name:new RegExp(`^${tab.replace('&','&')}`)}).click()
@@ -89,7 +95,7 @@ async function main() {
     const operatorEmail=`operator.audit.${unique}@ferrovia.local`
     await api('/auth/register',{fullName:`Audit Operator ${unique}`,email:operatorEmail,password:'Audit123!',role:'OPERATOR'})
     await page.goto('http://localhost:5173/?intro=0#/admin/operator-approvals',{waitUntil:'networkidle'})
-    await page.getByRole('button',{name:'Approve operator'}).first().click()
+    await page.locator('.approval-card').filter({hasText:operatorEmail}).getByRole('button',{name:'Approve operator'}).click()
     await page.getByRole('dialog').getByRole('button',{name:'Approve operator'}).click()
     await page.getByText(/can now sign in/).waitFor()
     await api('/auth/login',{email:operatorEmail,password:'Audit123!'})

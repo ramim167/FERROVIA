@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Icon } from './Icons'
+import { localToday } from '../lib/format'
 
 const WEEKDAYS = ['Su','Mo','Tu','We','Th','Fr','Sa']
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
@@ -14,20 +15,23 @@ const addDays = (date, days) => new Date(date.getFullYear(), date.getMonth(), da
 export default function DatePicker({ value, onChange, min, max, label='Date', ariaLabel }){
  const [open,setOpen] = useState(false)
  const selected = value ? parseISO(value) : null
- const today = stripTime(new Date())
+ const today = parseISO(localToday())
  const minDate = min ? stripTime(parseISO(min)) : today
  const maxDate = max ? stripTime(parseISO(max)) : addDays(today, 7)
  const [view,setView] = useState(selected || today)
  const wrapRef = useRef(null)
+ const triggerRef = useRef(null)
+ const close = () => { setOpen(false); triggerRef.current?.focus() }
 
  useEffect(()=>{
   if(!open) return
   setView(selected || today)
   const onDoc = e => { if(wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false) }
-  const onKey = e => { if(e.key==='Escape') setOpen(false) }
+  const focusTimer = setTimeout(() => wrapRef.current?.querySelector('.dp-selected:not(:disabled), .dp-grid button:not(:disabled)')?.focus(), 0)
+  const onKey = e => { if(e.key==='Escape') { e.preventDefault(); close() } }
   document.addEventListener('mousedown', onDoc)
   document.addEventListener('keydown', onKey)
-  return ()=>{ document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey) }
+  return ()=>{ clearTimeout(focusTimer); document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
  },[open])
 
@@ -47,14 +51,14 @@ export default function DatePicker({ value, onChange, min, max, label='Date', ar
   const day = stripTime(date)
   if(day < minDate || day > maxDate) return
   onChange(toISO(date))
-  setOpen(false)
+  close()
  }
  const goToday = () => { setView(today); pick(today) }
 
  const display = selected ? selected.toLocaleDateString('en-GB',{ day:'2-digit', month:'short', year:'numeric' }) : 'Select date'
 
  return <div className="datepicker" ref={wrapRef}>
-  <button type="button" className="datepicker-trigger" aria-haspopup="dialog" aria-expanded={open} aria-label={ariaLabel||label} onClick={()=>setOpen(v=>!v)}>
+  <button ref={triggerRef} type="button" className="datepicker-trigger" aria-haspopup="dialog" aria-expanded={open} aria-label={ariaLabel||label} onClick={()=>setOpen(v=>!v)}>
    <Icon name="calendar" size={17}/>
    <span>{display}</span>
   </button>
@@ -71,13 +75,13 @@ export default function DatePicker({ value, onChange, min, max, label='Date', ar
      const disabled = day < minDate || day > maxDate
      const isToday = sameDay(c.date, today)
      const isSelected = selected && sameDay(c.date, selected)
-     return <button type="button" key={i} disabled={disabled}
+     return <button type="button" key={i} disabled={disabled} aria-label={c.date.toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})} aria-pressed={Boolean(isSelected)}
       className={`${c.muted?'dp-muted':''} ${isToday?'dp-today':''} ${isSelected?'dp-selected':''}`}
       onClick={()=>pick(c.date)}>{c.day}</button>
     })}
    </div>
    <div className="dp-foot">
-    <button type="button" className="dp-text" onClick={()=>setOpen(false)}>Close</button>
+    <button type="button" className="dp-text" onClick={close}>Close</button>
     <button type="button" className="dp-text dp-today-btn" onClick={goToday}>Today</button>
    </div>
   </div>}
