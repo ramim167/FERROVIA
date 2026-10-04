@@ -6,7 +6,8 @@ import { Button } from '../components/ui/Button'
 import { Badge, DelayBadge, EmptyState, ErrorState, SkeletonJourney } from '../components/ui/Feedback'
 import { Drawer } from '../components/ui/Overlay'
 import { BookingStepper, RouteLine } from '../components/ui/Rail'
-import { delayText, durationText, fmtDate, fmtSearchDate, fmtTime, humanize, money } from '../lib/format'
+import { delayText, durationText, fmtSearchDate, fmtTime, humanize, money } from '../lib/format'
+import { downloadTicketPdf } from '../lib/ticketPdf'
 
 const TIME_BANDS = [
   ['Morning', '05:00 – 11:59', 'sun'],
@@ -147,7 +148,7 @@ export function SearchPage({ search, setSearch, doSearch, chooseTrain, favorites
   const [types, setTypes] = useState(saved.types || [])
   const [sort, setSort] = useState(saved.sort || 'earliest')
   useEffect(() => { try { sessionStorage.setItem('ferrovia-filters', JSON.stringify({ times, types, sort })) } catch { /* Optional storage */ } }, [times, types, sort])
-  const [editing, setEditing] = useState(false)
+  const [editing, setEditing] = useState(() => !search.from || !search.to)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const filtered = useMemo(() => {
     let list = [...trains]
@@ -525,7 +526,7 @@ function useCountdown(target) {
     return () => clearInterval(t)
   }, [target])
   if (!target) return null
-  return Math.max(0, Math.floor((new Date(target).getTime() - now) / 1000))
+  return Math.max(0, Math.ceil((new Date(target).getTime() - now) / 1000))
 }
 
 function restrictDigits(event, maxLength) {
@@ -542,14 +543,14 @@ function formatFutureCardExpiry(event) {
   const expiryYear = 2000 + Number(match[2])
   const expiryMonth = Number(match[1])
   const now = new Date()
-  const isFuture = expiryYear > now.getFullYear() || (expiryYear === now.getFullYear() && expiryMonth > now.getMonth() + 1)
-  input.setCustomValidity(isFuture ? '' : 'Expiry must be after the current month.')
+  const isFuture = expiryYear > now.getFullYear() || (expiryYear === now.getFullYear() && expiryMonth >= now.getMonth() + 1)
+  input.setCustomValidity(isFuture ? '' : 'Expiry must not be in the past.')
 }
 
 const METHODS = [
-  ['Mobile Banking', 'phone', 'bKash, Nagad, Rocket'],
-  ['Card', 'card', 'Visa, Mastercard, Amex'],
-  ['Bank Transfer', 'bank', 'Online banking reference'],
+  ['Mobile Banking', 'phone', 'Record a mobile payment reference'],
+  ['Card', 'card', 'Record a card payment'],
+  ['Bank Transfer', 'bank', 'Record a bank transfer reference'],
 ]
 
 export function PaymentPage({ booking, confirm, back, train, cls, search, seatLabels, paying, navigate }) {
@@ -573,7 +574,7 @@ export function PaymentPage({ booking, confirm, back, train, cls, search, seatLa
       <BookingStepper step={3} />
       <header className="page-header">
         <div className="page-header-copy">
-          <span className="page-overline">Secure checkout</span>
+          <span className="page-overline">Complete your booking</span>
           <h1>Review and pay</h1>
           <p>Your seats are reserved under PNR <b className="t-num">{booking.pnr_number}</b> while you complete payment.</p>
         </div>
@@ -586,8 +587,9 @@ export function PaymentPage({ booking, confirm, back, train, cls, search, seatLa
           )}
         </div>
       </header>
+      {expired && <div className="notice notice-warning" role="alert"><span>Your seat hold has expired. Search again to choose available seats.</span><Button variant="secondary" onClick={() => navigate('search')}>Choose seats again</Button></div>}
       <div className="booking-layout">
-        <form className="payment card" onSubmit={(e) => confirm(e, method)}>
+        <form className="payment card" onSubmit={(e) => { if (expired) e.preventDefault(); else confirm(e, method) }}>
           <h2 className="payment-title">Payment method</h2>
           <div className="pay-methods" role="radiogroup" aria-label="Payment method">
             {METHODS.map(([x, icon, hint]) => (
@@ -645,6 +647,9 @@ export function PaymentPage({ booking, confirm, back, train, cls, search, seatLa
 /* ---------------------------------------------------------------- confirmation */
 
 export function Confirmation({ booking, navigate }) {
+  const ticketRef = useRef(null)
+  const [downloading, setDownloading] = useState(false)
+  const [downloadError, setDownloadError] = useState('')
   if (!booking)
     return (
       <main className="page page-enter">
@@ -653,19 +658,22 @@ export function Confirmation({ booking, navigate }) {
         </div>
       </main>
     )
-  const seats = (booking.passengers || []).map((p) => `${p.coach_code}-${p.seat_number}`)
-  const download = () => {
-    const text = `FERROVIA E-Ticket\nPNR: ${booking.pnr_number}\nTrain: ${booking.train_name}\nRoute: ${booking.source_station} to ${booking.destination_station}\nDeparture: ${fmtDate(booking.scheduled_departure)} ${fmtTime(booking.scheduled_departure)}\nSeat: ${seats.join(', ')}\nFare: ${money(booking.total_fare)}`
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }))
-    a.download = `ticket-${booking.pnr_number}.txt`
-    a.click()
-    URL.revokeObjectURL(a.href)
+  const download = async () => {
+    if (downloading) return
+    setDownloading(true)
+    setDownloadError('')
+    try {
+      await downloadTicketPdf(ticketRef.current, booking.pnr_number)
+    } catch {
+      setDownloadError('Could not download the ticket. Please try again.')
+    } finally {
+      setDownloading(false)
+    }
   }
   return (
     <main className="page page-enter">
       <BookingStepper step={4} />
-      <section className="confirm">
+      <section className="confirm" ref={ticketRef}>
         <div className="confirm-head">
           <span className="confirm-check" aria-hidden="true">
             <svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="24" /><path d="m15 27 7.5 7.5L38 19" /></svg>
@@ -679,9 +687,10 @@ export function Confirmation({ booking, navigate }) {
         <div className="confirm-actions no-print">
           <Button icon="wallet" onClick={() => navigate('tickets')}>View my tickets</Button>
           <Button variant="secondary" icon="print" onClick={() => window.print()}>Print</Button>
-          <Button variant="secondary" icon="download" onClick={download}>Download</Button>
+          <Button variant="secondary" icon="download" onClick={download} loading={downloading} loadingText="Preparing PDF…">Download PDF</Button>
           <Button variant="ghost" icon="chart" onClick={() => navigate('dashboard')}>Go to dashboard</Button>
         </div>
+        {downloadError && <p className="notice notice-danger no-print" role="alert">{downloadError}</p>}
       </section>
     </main>
   )

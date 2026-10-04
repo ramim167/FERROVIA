@@ -14,7 +14,7 @@ The root development dependency `@axe-core/playwright` supports accessibility au
 
 ## Project Status
 
-Last verified: **29 September 2026**.
+Last verified: **3 October 2026**. See [the UI update report](UI_UPDATE_REPORT.md) for the latest scope and results.
 
 The passenger, operator, and admin workflows are implemented. The automated backend suite currently contains **12 passing integration tests** in isolated memory mode. A separate rollback-safe PostgreSQL suite verifies the required function, procedure, and trigger against the configured PostgreSQL/Supabase database.
 
@@ -33,7 +33,7 @@ The passenger, operator, and admin workflows are implemented. The automated back
 | Notifications | Yes | Database-backed list, mark one read, and mark all read |
 | Conduttore assistant | Yes | Direct FERROVIA database answers for route, schedule, off-day, fare, seat, recommendation, and live-status questions |
 | Theme and responsive UI | Yes | Persistent light/dark theme and responsive passenger, operator, admin, and assistant views |
-| Support form delivery | UI only | The FAQ works, but contact-form messages are not persisted or sent |
+| Help centre | FAQ and local notes | Search answers and download a support note. Requests are not delivered to a support team |
 
 ## Technology Stack
 
@@ -425,7 +425,7 @@ Authorization: Bearer <token>
 - Payment confirmation is an internal academic-project simulation; no bank, card processor, or mobile-financial-service gateway is connected.
 - Live position is derived from operator Arrived/Departed events, not GPS hardware.
 - Conduttore is a database-backed railway assistant, not a general-purpose LLM. It intentionally answers only supported FERROVIA questions.
-- The support contact form currently shows a successful UI message but does not save or send the submission.
+- The support form downloads a local text note and explicitly explains that it does not send a request.
 - Logout clears the browser session. Issued stateless bearer tokens remain valid until their configured expiry because there is no server-side revocation list.
 - Passenger and operator registration are public; admin accounts must be seeded or created directly through controlled database administration.
 - The default integration suite runs in isolated memory mode. Run `npm run test:postgres` explicitly to verify PostgreSQL-specific behavior against the configured database; its temporary fixture is always rolled back.

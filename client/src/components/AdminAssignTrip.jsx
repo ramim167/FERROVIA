@@ -334,7 +334,7 @@ export default function AdminAssignTrip({ user, handleError, setToast }) {
             />
           </div>
         </div>
-        <div className="admin-table-wrap">
+        <div className="admin-table-wrap" tabIndex={0} role="region" aria-label="Issued trip assignments">
           <table>
             <thead>
               <tr>

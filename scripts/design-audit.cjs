@@ -1,5 +1,5 @@
 const assert = require('node:assert/strict')
-const { mkdirSync, writeFileSync } = require('node:fs')
+const { mkdirSync, writeFileSync, existsSync, readFileSync } = require('node:fs')
 const { resolve } = require('node:path')
 const { chromium } = require('playwright-core')
 const AxeBuilder = require('@axe-core/playwright').default
@@ -7,15 +7,18 @@ const { browserOptions } = require('./browser.cjs')
 const base = process.env.APP_URL || 'http://localhost:5173'
 const out = resolve(__dirname, '../artifacts/design-audit')
 mkdirSync(out, { recursive: true })
-const report = { screens: [], errors: [], motion: {} }
+const report = process.env.AUDIT_RESUME && existsSync(resolve(out,'report.json')) ? JSON.parse(readFileSync(resolve(out,'report.json'))) : { screens: [], errors: [], motion: {} }
 async function login(role) {
   const response = await fetch('http://localhost:5000/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: `${role}@ferrovia.local`, password: role === 'admin' ? 'Admin123!' : 'Operator123!' }) })
   return (await response.json()).data
 }
 async function capture(page, name, theme, width, audit = true) {
+  const index = report.screens.findIndex(s=>s.name===name && s.theme===theme && s.width===width)
+  if(process.env.AUDIT_RESUME && index>=0 && !report.screens[index].violations.length && report.screens[index].overflow<=0 && !['home','search','support'].includes(name)) return
+  if(index>=0) report.screens.splice(index,1)
   await page.waitForTimeout(350)
   await page.evaluate(async () => {
-    for (let y = 0; y < document.documentElement.scrollHeight; y += innerHeight * .85) { scrollTo(0, y); await new Promise(r => setTimeout(r, 20)) }
+    for (const section of document.querySelectorAll('.reveal')) { section.scrollIntoView({block:'center'}); await new Promise(r => setTimeout(r, 150)) }
     scrollTo(0, 0)
   })
   await page.waitForTimeout(750)

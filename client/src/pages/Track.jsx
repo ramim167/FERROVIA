@@ -72,15 +72,15 @@ export default function TrackTrain({ handleError }) {
     else if (event.key === 'Enter' && activeSuggestion >= 0) { event.preventDefault(); chooseSuggestion(suggestions[activeSuggestion]) }
   }
 
-  const track = async (e) => {
+  const track = async (e, refreshTripId) => {
     e?.preventDefault()
-    if (!query.trim()) return
+    if (!refreshTripId && !query.trim()) return
     setSuggestionsOpen(false)
     setLoading(true)
     try {
-      const q = query.trim()
+      const q = refreshTripId ? String(refreshTripId) : query.trim()
       const data = /^\d+$/.test(q) ? await api(`/trips/${q}/status`) : await api(`/trains/${encodeURIComponent(q)}/status`)
-      try { sessionStorage.setItem('ferrovia-last-train', q) } catch { /* Optional storage */ }
+      if (!refreshTripId) { try { sessionStorage.setItem('ferrovia-last-train', q) } catch { /* Optional storage */ } }
       setLive(data)
       setStops(await api(`/trips/${data.trip_id}/stops`))
       setUpdatedAt(new Date())
@@ -95,7 +95,7 @@ export default function TrackTrain({ handleError }) {
   useEffect(() => { refreshRef.current = track })
   useEffect(() => {
     if (!autoRefresh || !live) return
-    const timer = setInterval(() => { if (!document.hidden && !loading) refreshRef.current?.() }, 60000)
+    const timer = setInterval(() => { if (!document.hidden && !loading) refreshRef.current?.(null, live.trip_id) }, 60000)
     return () => clearInterval(timer)
   }, [autoRefresh, live, loading])
   const atStop = stops.find((s) => s.actual_arrival && !s.actual_departure)

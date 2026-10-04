@@ -36,8 +36,7 @@ export default function Intro({ onDone }) {
     ]
     const onKey = (e) => { if (['Escape', 'Enter', ' '].includes(e.key)) { e.preventDefault(); finish() } }
     window.addEventListener('keydown', onKey)
-    const list = timers.current
-    return () => { list.forEach(clearTimeout); window.removeEventListener('keydown', onKey) }
+    return () => { timers.current.forEach(clearTimeout); window.removeEventListener('keydown', onKey) }
   }, [finish])
 
   return (

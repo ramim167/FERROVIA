@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import DatePicker from '../components/DatePicker'
 import { Icon } from '../components/Icons'
 import { Button } from '../components/ui/Button'
@@ -19,6 +19,11 @@ export default function OperatorPanel({ user, handleError, setToast }) {
   const [marking, setMarking] = useState(null)
   const [now, setNow] = useState(Date.now())
   const confirm = useConfirm()
+  const requestId = useRef(0)
+  useEffect(() => {
+    requestId.current += 1
+    setSelected(null); setOps(null); setTrips([])
+  }, [date])
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000)
@@ -32,7 +37,7 @@ export default function OperatorPanel({ user, handleError, setToast }) {
     try {
       const data = await api(`/operator/trips?date=${date}`)
       setTrips(data)
-      if (selected && !data.some((t) => Number(t.trip_id) === Number(selected))) setSelected(null)
+      if (selected && !data.some((t) => Number(t.trip_id) === Number(selected))) { setSelected(null); setOps(null) }
     } catch (err) {
       handleError(err)
     } finally {
@@ -42,13 +47,18 @@ export default function OperatorPanel({ user, handleError, setToast }) {
   useEffect(() => { loadTrips() }, [loadTrips])
 
   const open = async (id) => {
+    const request = ++requestId.current
     setSelected(id)
+    setOps(null)
     setLoading(true)
-    try { setOps(await api(`/operator/trips/${id}`)) } catch (err) { handleError(err) } finally { setLoading(false) }
+    try {
+      const next = await api(`/operator/trips/${id}`)
+      if (request === requestId.current) setOps(next)
+    } catch (err) { if (request === requestId.current) handleError(err) } finally { if (request === requestId.current) setLoading(false) }
   }
 
   const mark = async (stop, action) => {
-    const clock = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+    const clock = fmtTime(new Date())
     const ok = await confirm({
       tone: action === 'depart' ? 'warning' : 'primary',
       icon: action === 'depart' ? 'train' : 'checkCircle',
@@ -81,7 +91,7 @@ export default function OperatorPanel({ user, handleError, setToast }) {
 
   const delayed = trips.filter((t) => Number(t.current_delay_minutes) > 0).length
   const done = trips.filter((t) => t.trip_status === 'COMPLETED').length
-  const clock = new Date(now).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })
+  const clock = new Date(now).toLocaleTimeString('en-US', { timeZone: 'Asia/Dhaka', hour: 'numeric', minute: '2-digit', second: '2-digit' })
 
   return (
     <main className="page page-enter ws-page">

@@ -4,6 +4,7 @@ import RailScene from '../components/brand/RailScene'
 import { SymbolMark } from '../components/brand/Logo'
 import { prefersReducedMotion } from '../lib/motion'
 import { fmtSearchDate } from '../lib/format'
+import StationLandscape from '../components/brand/StationLandscape'
 
 /** Split-flap characters: each tile re-mounts (and flips) when its letter changes. */
 function Flap({ text, size = 3 }) {
@@ -55,7 +56,7 @@ const STEPS = [
   ['ticket', 'Travel with your e-ticket', 'Pay securely and your e-ticket lands in My tickets, ready to view, print or download.'],
 ]
 
-export default function Home({ search, setSearch, doSearch, navigate, stations }) {
+export default function Home({ search, setSearch, doSearch, navigate, stations, motionEnabled, onToggleMotion }) {
   const focusSearch = () => {
     document.getElementById('journey-planner')?.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'center' })
     document.querySelector('#journey-planner input')?.focus({ preventScroll: true })
@@ -74,10 +75,11 @@ export default function Home({ search, setSearch, doSearch, navigate, stations }
       <section className="hero" aria-labelledby="hero-title">
         <RailScene mode="arrive" className="hero-scene" coaches={3} />
         <div className="hero-inner">
+          <div className="hero-edition"><span>THE JOURNEY STARTS HERE</span><span>Explore Bangladesh, one station at a time.</span></div>
           <div className="hero-grid">
             <div className="hero-copy">
               <span className="hero-kicker"><span className="hero-kicker-dot" /> Bangladesh Railway e-ticketing</span>
-              <h1 id="hero-title" className="t-display">Bangladesh by rail, booked in minutes.</h1>
+              <h1 id="hero-title" className="t-display">Bangladesh by rail,<br /><em>booked in minutes.</em></h1>
               <p>Search every scheduled train, pick your exact seat on the coach map and carry your e-ticket wherever you go.</p>
               <div className="hero-actions">
                 <button type="button" className="btn btn-primary btn-lg" onClick={() => navigate('track')}>
@@ -91,10 +93,16 @@ export default function Home({ search, setSearch, doSearch, navigate, stations }
             <DepartureBoard search={search} stations={stations} />
           </div>
           <div id="journey-planner" className="hero-search">
+            <div className="planner-heading"><span><Icon name="ticket" size={18} /> Plan your next journey</span><small>Your route. Your seat. Your way.</small></div>
             <SearchBox search={search} setSearch={setSearch} onSubmit={doSearch} stations={stations} />
           </div>
         </div>
+        <div className="scenery-caption"><span><i /> A little closer to somewhere new.</span><button type="button" onClick={onToggleMotion} aria-pressed={!motionEnabled}>{motionEnabled ? 'Pause scenery' : 'Play scenery'}</button></div>
       </section>
+
+      <div className="journey-ribbon" aria-label="Journey tools">
+        <span><Icon name="route" size={18} /> Find your route</span><i /><span><Icon name="seat" size={18} /> Choose your seat</span><i /><span><Icon name="ticket" size={18} /> Keep your e-ticket</span>
+      </div>
 
       <section className="home-section reveal" aria-labelledby="steps-title">
         <div className="home-head">
@@ -123,10 +131,11 @@ export default function Home({ search, setSearch, doSearch, navigate, stations }
             <button type="button" className="btn btn-secondary" onClick={focusSearch}>Open journey planner</button>
           </div>
           <div className="station-grid">
-            {featured.map((station) => {
+            {featured.map((station, index) => {
               const role = search.from === station.station_name ? 'From' : search.to === station.station_name ? 'To' : null
               return (
                 <button type="button" key={station.station_id} className={`station-tile ${role ? 'is-picked' : ''}`} onClick={() => pickStation(station.station_name)} aria-pressed={Boolean(role)}>
+                  <StationLandscape index={index} />
                   <span className="station-tile-code">{station.station_code}</span>
                   <span className="station-tile-name">{station.station_name}</span>
                   <span className="station-tile-city">{role ? `Selected as ${role.toLowerCase()}` : station.city}</span>
@@ -176,7 +185,7 @@ export default function Home({ search, setSearch, doSearch, navigate, stations }
           <button type="button" className="bento-card" onClick={() => navigate('support')}>
             <span className="bento-icon tone-neutral"><Icon name="support" size={22} /></span>
             <h3>Help centre</h3>
-            <p>Refund rules, PNR lookups and how seat holds work, with a direct line to support.</p>
+            <p>Find answers about refund rules, PNR references and how seat holds work.</p>
             <span className="link-btn">Get help <Icon name="arrow" size={16} /></span>
           </button>
         </div>
